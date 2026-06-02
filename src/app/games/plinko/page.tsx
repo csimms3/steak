@@ -10,142 +10,223 @@ import type { PlinkoRisk } from "@/lib/game-engine/plinko";
 
 // ─── Board geometry ───────────────────────────────────────────────────────────
 
-const SVG_W = 420;
-const SVG_H = 500;
-const PADDING = 16;
-const TOP_Y = 30;
-const BUCKET_H = 52;
-const PEG_AREA_H = SVG_H - TOP_Y - BUCKET_H;
-const BALL_R = 6;
+const W = 420;
+const H = 500;
+const PAD = 18;
+const TOP_Y = 40;
+const BUCKET_H = 50;
+const PEG_AREA_H = H - TOP_Y - BUCKET_H;
 
-// spacing: (rows+1) buckets across (SVG_W - 2*PADDING)
-const S = (rows: number) => (SVG_W - 2 * PADDING) / (rows + 1);
-const RH = (rows: number) => PEG_AREA_H / rows;
-const CX = SVG_W / 2;
+/** Spacing between pegs (= bucket width). (rows+1) buckets across (W-2*PAD). */
+const spacing = (rows: number) => (W - 2 * PAD) / (rows + 1);
+const rowH    = (rows: number) => PEG_AREA_H / rows;
 
-const pegX = (r: number, j: number, rows: number) => CX + (j - r / 2) * S(rows);
-const pegY = (r: number, rows: number) => TOP_Y + r * RH(rows);
+const CX = W / 2;
 
-// Ball x at a given step (number of bounces taken) with rCount R-moves accumulated
-const ballX = (rCount: number, step: number, rows: number) =>
-  CX + (rCount - step / 2) * S(rows);
+const pegX = (r: number, j: number, rows: number) =>
+  CX + (j - r / 2) * spacing(rows);
+const pegY = (r: number, rows: number) => TOP_Y + r * rowH(rows);
+const bucketCX = (j: number, rows: number) =>
+  PAD + (j + 0.5) * spacing(rows);
+const bucketY = (rows: number) => TOP_Y + rows * rowH(rows) + 8;
 
-// Ball y: in peg zone when step < rows, in bucket zone when done
-const ballY = (step: number, rows: number) =>
-  step >= rows
-    ? TOP_Y + rows * RH(rows) + BUCKET_H * 0.32
-    : TOP_Y + step * RH(rows);
+// ─── Physics constants ────────────────────────────────────────────────────────
 
-const bucketCX = (j: number, rows: number) => PADDING + (j + 0.5) * S(rows);
+const GRAVITY   = 0.22;   // px / frame²
+const BOUNCE_VY = -1.2;   // upward kick on peg hit (px/frame)
+const BALL_R    = 5;
 
-function mColor(m: number) {
-  if (m >= 50)  return { fill: "rgba(232,93,4,0.95)", text: "#fff",      stroke: "#e85d04" };
-  if (m >= 10)  return { fill: "rgba(232,93,4,0.55)", text: "#e85d04",   stroke: "#e85d04" };
-  if (m >= 3)   return { fill: "rgba(244,140,6,0.35)", text: "#f48c06",  stroke: "#f48c06" };
-  if (m >= 1.5) return { fill: "rgba(255,255,255,0.07)", text: "#c9d3dd", stroke: "rgba(255,255,255,0.15)" };
-  if (m >= 1)   return { fill: "rgba(255,255,255,0.04)", text: "#6a5a42",  stroke: "rgba(255,255,255,0.08)" };
-  return         { fill: "rgba(239,68,68,0.25)", text: "#ef4444",   stroke: "rgba(239,68,68,0.45)" };
-}
+/** Horizontal speed after deflection — scales with bucket width so the ball
+ *  travels roughly one column per peg regardless of row count. */
+const deflectVX = (rows: number) => spacing(rows) * 0.048;
 
-// ─── Ball animation state ─────────────────────────────────────────────────────
+// ─── Ball physics state ───────────────────────────────────────────────────────
 
-interface BallAnim {
+interface PhysBall {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
   path: Array<"L" | "R">;
   bucketIndex: number;
-  // step = current peg row (0 = top peg, rows = landed in bucket)
-  step: number;
-  // rCount = R-moves taken so far → determines horizontal position
-  rCount: number;
+  nextPeg: number;   // index of the next peg row to hit (0..rows)
+  rCount: number;    // R-moves taken so far
+  landed: boolean;
 }
 
-// ─── SVG Board ────────────────────────────────────────────────────────────────
+// ─── Multiplier colour helpers ────────────────────────────────────────────────
+
+function mFill(m: number): string {
+  if (m >= 50)  return "rgba(232,93,4,0.95)";
+  if (m >= 10)  return "rgba(232,93,4,0.55)";
+  if (m >= 3)   return "rgba(244,140,6,0.35)";
+  if (m >= 1.5) return "rgba(255,255,255,0.07)";
+  if (m >= 1)   return "rgba(255,255,255,0.04)";
+  return               "rgba(239,68,68,0.25)";
+}
+function mText(m: number): string {
+  if (m >= 10)  return "#e85d04";
+  if (m >= 3)   return "#f48c06";
+  if (m >= 1.5) return "#c9d3dd";
+  if (m >= 1)   return "#5a4a32";
+  return               "#ef4444";
+}
+function mStroke(m: number): string {
+  if (m >= 10)  return "rgba(232,93,4,0.7)";
+  if (m >= 3)   return "rgba(244,140,6,0.5)";
+  if (m >= 1.5) return "rgba(255,255,255,0.14)";
+  if (m >= 1)   return "rgba(255,255,255,0.07)";
+  return               "rgba(239,68,68,0.45)";
+}
+
+// ─── Canvas Plinko Board ──────────────────────────────────────────────────────
 
 function PlinkoBoard({
-  rows, risk, balls, stepMs,
+  rows,
+  risk,
+  ballsRef,
+  running,
+  onAllLanded,
 }: {
   rows: 8 | 12 | 16;
   risk: PlinkoRisk;
-  balls: BallAnim[];
-  stepMs: number;
+  ballsRef: React.MutableRefObject<PhysBall[]>;
+  running: boolean;
+  onAllLanded: () => void;
 }) {
-  const spacing = S(rows);
-  const rowH = RH(rows);
-  const pr = Math.max(2.5, 4.5 - (rows - 8) * 0.12);
-  const table = getMultiplierTable(rows, risk);
-  const fontSize = Math.max(7, Math.min(11, spacing * 0.52));
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const rafRef    = useRef<number>(0);
+  const table     = getMultiplierTable(rows, risk);
+  const sp        = spacing(rows);
+  const rh        = rowH(rows);
+  const pr        = Math.max(3, 4.5 - (rows - 8) * 0.12); // peg radius
+  const dpr       = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+  const dvx       = deflectVX(rows);
 
-  // Count how many balls landed in each bucket
-  const landedCount: Record<number, number> = {};
-  for (const b of balls) {
-    if (b.step >= rows) {
-      landedCount[b.bucketIndex] = (landedCount[b.bucketIndex] ?? 0) + 1;
-    }
-  }
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !running) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // Scale canvas for retina
+    canvas.width  = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width  = `${W}px`;
+    canvas.style.height = `${H}px`;
+    ctx.scale(dpr, dpr);
+
+    const draw = () => {
+      ctx.clearRect(0, 0, W, H);
+
+      // ── Pegs ──
+      ctx.fillStyle = "rgba(255,255,255,0.22)";
+      for (let r = 0; r < rows; r++) {
+        for (let j = 0; j <= r; j++) {
+          ctx.beginPath();
+          ctx.arc(pegX(r, j, rows), pegY(r, rows), pr, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // ── Buckets ──
+      const bY  = bucketY(rows);
+      const bH  = BUCKET_H - 16;
+      const bW  = sp - 3;
+      const fs  = Math.max(7, Math.min(11, sp * 0.52));
+
+      // Count landed balls per bucket
+      const landCount: Record<number, number> = {};
+      for (const b of ballsRef.current) {
+        if (b.landed) landCount[b.bucketIndex] = (landCount[b.bucketIndex] ?? 0) + 1;
+      }
+
+      for (let i = 0; i <= rows; i++) {
+        const m   = table[i];
+        const cx  = bucketCX(i, rows);
+        const hit = landCount[i] ?? 0;
+        const x   = cx - bW / 2;
+
+        ctx.fillStyle = mFill(m);
+        ctx.strokeStyle = mStroke(m);
+        ctx.lineWidth = hit > 0 ? 2 : 1;
+        ctx.beginPath();
+        ctx.roundRect(x, bY, bW, bH, 3);
+        ctx.fill();
+        ctx.stroke();
+
+        if (hit > 0) {
+          ctx.fillStyle = `rgba(255,255,255,${Math.min(0.22, hit * 0.07)})`;
+          ctx.beginPath();
+          ctx.roundRect(x, bY, bW, bH, 3);
+          ctx.fill();
+        }
+
+        ctx.fillStyle = mText(m);
+        ctx.font = `700 ${fs}px system-ui,sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(`${m}×`, cx, bY + bH / 2);
+      }
+
+      // ── Update + draw balls ──
+      let allDone = true;
+      for (const ball of ballsRef.current) {
+        if (!ball.landed) {
+          // Physics step
+          ball.vy += GRAVITY;
+          ball.x  += ball.vx;
+          ball.y  += ball.vy;
+
+          // Peg collision — may pass through multiple peg rows in one frame
+          while (ball.nextPeg < rows && ball.y >= pegY(ball.nextPeg, rows)) {
+            const dir = ball.path[ball.nextPeg];
+            ball.vx = dvx * (dir === "R" ? 1 : -1);
+            ball.vy = BOUNCE_VY;
+            if (dir === "R") ball.rCount++;
+            ball.nextPeg++;
+          }
+
+          // Settle into bucket once past all pegs and below bucket line
+          if (ball.nextPeg >= rows && ball.y >= bY + bH * 0.5) {
+            ball.landed = true;
+            ball.x = bucketCX(ball.rCount, rows);
+            ball.y = bY + bH * 0.5;
+          }
+
+          allDone = false;
+        }
+
+        // Draw
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, BALL_R, 0, Math.PI * 2);
+        ctx.fillStyle = ball.landed ? "rgba(244,140,6,0.6)" : "#e85d04";
+        ctx.shadowColor = ball.landed ? "transparent" : "rgba(232,93,4,0.35)";
+        ctx.shadowBlur  = ball.landed ? 0 : 5;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+
+      if (allDone && ballsRef.current.length > 0) {
+        cancelAnimationFrame(rafRef.current);
+        onAllLanded();
+        return;
+      }
+
+      rafRef.current = requestAnimationFrame(draw);
+    };
+
+    rafRef.current = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(rafRef.current);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [running, rows, risk]);
 
   return (
-    <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} className="w-full" style={{ maxHeight: 480 }}>
-      {/* Pegs */}
-      {Array.from({ length: rows }, (_, r) =>
-        Array.from({ length: r + 1 }, (_, j) => (
-          <circle key={`${r}-${j}`}
-            cx={pegX(r, j, rows)} cy={pegY(r, rows)} r={pr}
-            fill="white" opacity={0.22}
-          />
-        ))
-      )}
-
-      {/* Buckets */}
-      {table.map((m, i) => {
-        const cx = bucketCX(i, rows);
-        const bw = spacing - 3;
-        const buY = TOP_Y + rows * rowH + 8;
-        const bh = BUCKET_H - 18;
-        const col = mColor(m);
-        const count = landedCount[i] ?? 0;
-        const isActive = count > 0;
-
-        return (
-          <g key={i}>
-            <rect x={cx - bw / 2} y={buY} width={bw} height={bh} rx={3}
-              fill={col.fill} stroke={col.stroke} strokeWidth={isActive ? 2 : 1}
-            />
-            {isActive && (
-              <rect x={cx - bw / 2} y={buY} width={bw} height={bh} rx={3}
-                fill={`rgba(255,255,255,${Math.min(0.25, count * 0.08)})`}
-              />
-            )}
-            <text x={cx} y={buY + bh / 2}
-              textAnchor="middle" dominantBaseline="middle"
-              fill={col.text} fontSize={fontSize} fontWeight="700"
-            >
-              {m}×
-            </text>
-          </g>
-        );
-      })}
-
-      {/* All balls — rendered simultaneously */}
-      {balls.map((ball, i) => {
-        const step = Math.min(ball.step, ball.path.length);
-        const x = ballX(ball.rCount, step, rows);
-        const y = ballY(step, rows);
-        const landed = ball.step >= ball.path.length;
-
-        return (
-          <circle key={i} r={BALL_R}
-            fill={landed ? "#f48c06" : "#e85d04"}
-            opacity={landed ? 0.7 : 1}
-            style={{
-              transform: `translate(${x}px, ${y}px)`,
-              transition: `transform ${stepMs * 0.82}ms cubic-bezier(0.25, 0.46, 0.45, 0.94)`,
-              filter: landed
-                ? "drop-shadow(0 0 2px rgba(244,140,6,0.4))"
-                : "drop-shadow(0 0 2px rgba(232,93,4,0.5))",
-            }}
-          />
-        );
-      })}
-    </svg>
+    <canvas
+      ref={canvasRef}
+      style={{ width: W, height: H, maxWidth: "100%", display: "block", margin: "0 auto" }}
+    />
   );
 }
 
@@ -167,45 +248,30 @@ interface PlinkoResult {
 
 export default function PlinkoPage() {
   const { applyProfit, balance } = useBalance();
-  const [betAmount, setBetAmount] = useState(100_00);
-  const [rows, setRows] = useState<8 | 12 | 16>(8);
-  const [risk, setRisk] = useState<PlinkoRisk>("medium");
-  const [ballCount, setBallCount] = useState<1 | 3 | 5 | 10 | 25 | 100>(1);
-  const [dropping, setDropping] = useState(false);
-  const [balls, setBalls] = useState<BallAnim[]>([]);
+  const [betAmount, setBetAmount]   = useState(100_00);
+  const [rows, setRows]             = useState<8 | 12 | 16>(8);
+  const [risk, setRisk]             = useState<PlinkoRisk>("medium");
+  const [ballCount, setBallCount]   = useState<1 | 3 | 5 | 10 | 25 | 100>(1);
+  const [dropping, setDropping]     = useState(false);
   const [sessionProfit, setSessionProfit] = useState<number | null>(null);
   const [lastResult, setLastResult] = useState<PlinkoResult | null>(null);
-  const [history, setHistory] = useState<{ multiplier: number; profit: number }[]>([]);
+  const [history, setHistory]       = useState<{ multiplier: number; profit: number }[]>([]);
 
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const ballsRef       = useRef<PhysBall[]>([]);
   const totalProfitRef = useRef(0);
-  const rowsRef = useRef(rows);
-  useEffect(() => { rowsRef.current = rows; }, [rows]);
 
-  // Step ms: scales with ball count so large drops stay watchable
-  const stepMs = ballCount > 25 ? 140 : ballCount > 5 ? 200 : 280;
-
-  // Detect when all balls have landed
-  useEffect(() => {
-    if (!dropping || balls.length === 0) return;
-    if (balls.every(b => b.step >= b.path.length)) {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      setDropping(false);
-      setSessionProfit(totalProfitRef.current);
-    }
-  }, [balls, dropping]);
-
-  // Cleanup on unmount
-  useEffect(() => () => { if (intervalRef.current) clearInterval(intervalRef.current); }, []);
+  const handleAllLanded = useCallback(() => {
+    setDropping(false);
+    setSessionProfit(totalProfitRef.current);
+  }, []);
 
   const drop = useCallback(async () => {
     if (betAmount * ballCount > balance || dropping) return;
-    if (intervalRef.current !== null) clearInterval(intervalRef.current);
 
     setDropping(true);
     setSessionProfit(null);
-    setBalls([]);
     setLastResult(null);
+    ballsRef.current = [];
 
     try {
       const res = await fetch("/api/games/plinko", {
@@ -216,7 +282,7 @@ export default function PlinkoPage() {
       const raw = await res.json();
       const results: PlinkoResult[] = ballCount === 1 ? [raw] : raw;
 
-      // Apply profit and update history immediately (all resolved server-side)
+      // Apply profit immediately (server already resolved)
       let total = 0;
       results.forEach(r => {
         total += r.profit;
@@ -226,37 +292,23 @@ export default function PlinkoPage() {
       totalProfitRef.current = total;
       setLastResult(results[results.length - 1]);
 
-      // Init all balls at step 0 simultaneously
-      const initBalls: BallAnim[] = results.map(r => ({
+      // Init physics balls — all start at top center
+      ballsRef.current = results.map(r => ({
+        x: CX + (Math.random() - 0.5) * 2, // tiny ±1px jitter so they don't overlap perfectly
+        y: TOP_Y - rowH(rows) * 0.8,
+        vx: 0,
+        vy: 0,
         path: r.path,
         bucketIndex: r.bucketIndex,
-        step: 0,
+        nextPeg: 0,
         rCount: 0,
+        landed: false,
       }));
-      setBalls(initBalls);
-
-      // Single shared interval advances every ball by one step per tick
-      intervalRef.current = setInterval(() => {
-        setBalls(prev => {
-          const allDone = prev.every(b => b.step >= b.path.length);
-          if (allDone) return prev; // guard: useEffect will clear interval
-
-          return prev.map(ball => {
-            if (ball.step >= ball.path.length) return ball;
-            const dir = ball.path[ball.step];
-            return {
-              ...ball,
-              step: ball.step + 1,
-              rCount: ball.rCount + (dir === "R" ? 1 : 0),
-            };
-          });
-        });
-      }, stepMs);
 
     } catch {
       setDropping(false);
     }
-  }, [betAmount, ballCount, balance, rows, risk, dropping, applyProfit, stepMs]);
+  }, [betAmount, ballCount, balance, rows, risk, dropping, applyProfit]);
 
   const totalBet = (betAmount * ballCount) / 100;
 
@@ -269,17 +321,22 @@ export default function PlinkoPage() {
         </div>
         <div>
           <h1 className="text-xl font-bold text-[var(--text)]">Plinko</h1>
-          <p className="text-xs text-[var(--muted)]">Drop balls simultaneously · Land on a multiplier</p>
+          <p className="text-xs text-[var(--muted)]">Drop balls · Physics simulation · Land on a multiplier</p>
         </div>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-4">
         {/* Board */}
-        <div className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-3 overflow-hidden">
-          <PlinkoBoard rows={rows} risk={risk} balls={balls} stepMs={stepMs} />
+        <div className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-2 overflow-hidden">
+          <PlinkoBoard
+            rows={rows}
+            risk={risk}
+            ballsRef={ballsRef}
+            running={dropping}
+            onAllLanded={handleAllLanded}
+          />
 
-          {/* Status line */}
-          <div className="min-h-[26px] mt-1 text-center">
+          <div className="min-h-[24px] text-center py-1">
             {dropping && (
               <p className="text-xs text-[var(--muted)] animate-pulse">
                 {ballCount > 1 ? `${ballCount} balls dropping…` : "Dropping…"}
@@ -303,7 +360,7 @@ export default function PlinkoPage() {
               <div className="flex gap-1.5">
                 {ROWS_OPTIONS.map(r => (
                   <button key={r}
-                    onClick={() => { setRows(r); setBalls([]); }}
+                    onClick={() => { setRows(r); ballsRef.current = []; }}
                     disabled={dropping}
                     className={cn(
                       "flex-1 py-2 rounded-lg border text-sm font-bold transition-all",
@@ -387,15 +444,14 @@ export default function PlinkoPage() {
             <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-3 space-y-2">
               <p className="text-[10px] font-semibold text-[var(--muted)] uppercase tracking-wider">History</p>
               <div className="flex flex-wrap gap-1">
-                {history.map((h, i) => {
-                  const col = mColor(h.multiplier);
-                  return (
-                    <span key={i} className="px-2 py-0.5 rounded text-[10px] font-bold border"
-                      style={{ background: col.fill, color: col.text, borderColor: col.stroke }}>
-                      {h.multiplier}×
-                    </span>
-                  );
-                })}
+                {history.map((h, i) => (
+                  <span key={i}
+                    className="px-2 py-0.5 rounded text-[10px] font-bold border"
+                    style={{ background: mFill(h.multiplier), color: mText(h.multiplier), borderColor: mStroke(h.multiplier) }}
+                  >
+                    {h.multiplier}×
+                  </span>
+                ))}
               </div>
             </div>
           )}
@@ -406,7 +462,7 @@ export default function PlinkoPage() {
       {lastResult && (
         <details className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 text-xs">
           <summary className="cursor-pointer font-semibold text-[var(--text)] hover:text-[var(--accent)]">
-            Provably Fair — {ballCount > 1 ? "Last Ball" : "Verification"}
+            Provably Fair {ballCount > 1 ? "— Last Ball" : "Verification"}
           </summary>
           <div className="mt-3 space-y-1.5 font-mono break-all text-[var(--muted)]">
             <div><span>Server Seed: </span><span className="text-[var(--text)]">{lastResult.serverSeed}</span></div>

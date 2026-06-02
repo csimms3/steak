@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  player
+  admin
+}
+
+enum GameType {
+  dice
+  mines
+  plinko
+}
+
+model User {
+  id           String        @id @default(uuid())
+  username     String        @unique
+  email        String        @unique
+  passwordHash String
+  balance      BigInt        @default(0)
+  role         Role          @default(player)
+  createdAt    DateTime      @default(now())
+  gameSessions GameSession[]
+  crashBets    CrashBet[]
+}
+
+model GameSession {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+  game           GameType
+  betAmount      BigInt
+  profit         BigInt
+  multiplier     Float
+  serverSeed     String
+  serverSeedHash String
+  clientSeed     String
+  nonce          Int
+  outcome        Json
+  createdAt      DateTime @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+model CrashRound {
+  id             String     @id @default(uuid())
+  crashPoint     Float
+  serverSeed     String
+  serverSeedHash String
+  startedAt      DateTime   @default(now())
+  endedAt        DateTime?
+  bets           CrashBet[]
+}
+
+model CrashBet {
+  id           String     @id @default(uuid())
+  crashRoundId String
+  crashRound   CrashRound @relation(fields: [crashRoundId], references: [id])
+  userId       String
+  user         User       @relation(fields: [userId], references: [id])
+  betAmount    BigInt
+  cashedOutAt  Float?
+  profit       BigInt
+  createdAt    DateTime   @default(now())
+
+  @@index([crashRoundId])
+  @@index([userId])
+}
+
+// Single-row settings table — always id = 1
+model Settings {
+  id                    Int      @id @default(1)
+  defaultStartingBalance BigInt  @default(100000)
+  updatedAt             DateTime @updatedAt
+}

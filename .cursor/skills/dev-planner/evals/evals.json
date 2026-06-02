@@ -1,0 +1,59 @@
+{
+  "skill_name": "dev-planner",
+  "evals": [
+    {
+      "id": 0,
+      "prompt": "I want to build something that helps people track their reading habits — books they've read, want to read, and notes on each one. I have a rough idea but nothing concrete yet.",
+      "expected_output": "Full set of planning documents: requirements.md with user stories and non-goals, architecture.md with ADRs, roadmap.md with semver milestones, CHANGELOG.md in Keep a Changelog format, README.md with quick start, CONTRIBUTING.md with Conventional Commits guide.",
+      "files": [],
+      "assertions": [
+        {"text": "All 6 planning files exist (requirements.md, architecture.md, roadmap.md, CHANGELOG.md, README.md, CONTRIBUTING.md)"},
+        {"text": "CHANGELOG.md contains '[Unreleased]' section (Keep a Changelog format)"},
+        {"text": "CHANGELOG.md contains at least one category header (Added, Changed, Fixed, Removed, Deprecated, or Security)"},
+        {"text": "docs/requirements.md contains a Non-Goals section"},
+        {"text": "docs/requirements.md contains user story format ('As a')"},
+        {"text": "docs/requirements.md distinguishes must-have from nice-to-have requirements"},
+        {"text": "docs/architecture.md contains at least one ADR (Architecture Decision Record)"},
+        {"text": "docs/roadmap.md contains a v0.1.0 milestone"},
+        {"text": "CONTRIBUTING.md contains Conventional Commits guidance (e.g. 'feat:' prefix)"},
+        {"text": "README.md contains a Quick Start section"}
+      ]
+    },
+    {
+      "id": 1,
+      "prompt": "I'm thinking of building a CLI tool that scans a codebase for TODO comments and generates a structured report. It should support multiple output formats. Help me plan it properly.",
+      "expected_output": "Full set of planning documents with CLI-appropriate architecture (no frontend component), output format options documented in requirements, ADRs for key decisions like output format choices, semver milestones, conventional commits in CONTRIBUTING.",
+      "files": [],
+      "assertions": [
+        {"text": "All 6 planning files exist (requirements.md, architecture.md, roadmap.md, CHANGELOG.md, README.md, CONTRIBUTING.md)"},
+        {"text": "CHANGELOG.md contains '[Unreleased]' section (Keep a Changelog format)"},
+        {"text": "CHANGELOG.md contains at least one category header (Added, Changed, Fixed, Removed, Deprecated, or Security)"},
+        {"text": "docs/requirements.md contains a Non-Goals section"},
+        {"text": "docs/requirements.md contains user story format ('As a')"},
+        {"text": "docs/requirements.md distinguishes must-have from nice-to-have requirements"},
+        {"text": "docs/architecture.md contains at least one ADR (Architecture Decision Record)"},
+        {"text": "docs/roadmap.md contains a v0.1.0 milestone"},
+        {"text": "CONTRIBUTING.md contains Conventional Commits guidance (e.g. 'feat:' prefix)"},
+        {"text": "README.md contains a Quick Start section"}
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Help me plan a SaaS product for small restaurants to manage their menus and push updates to a website widget. Very early stage.",
+      "expected_output": "Full planning docs for a multi-tenant SaaS product. Architecture should cover multi-tenancy, embeddable widget, and auth. Requirements should include non-goals (e.g. no online ordering in MVP). Roadmap should reflect freemium/monetization phasing.",
+      "files": [],
+      "assertions": [
+        {"text": "All 6 planning files exist (requirements.md, architecture.md, roadmap.md, CHANGELOG.md, README.md, CONTRIBUTING.md)"},
+        {"text": "CHANGELOG.md contains '[Unreleased]' section (Keep a Changelog format)"},
+        {"text": "CHANGELOG.md contains at least one category header (Added, Changed, Fixed, Removed, Deprecated, or Security)"},
+        {"text": "docs/requirements.md contains a Non-Goals section"},
+        {"text": "docs/requirements.md contains user story format ('As a')"},
+        {"text": "docs/requirements.md distinguishes must-have from nice-to-have requirements"},
+        {"text": "docs/architecture.md contains at least one ADR (Architecture Decision Record)"},
+        {"text": "docs/roadmap.md contains a v0.1.0 milestone"},
+        {"text": "CONTRIBUTING.md contains Conventional Commits guidance (e.g. 'feat:' prefix)"},
+        {"text": "README.md contains a Quick Start section"}
+      ]
+    }
+  ]
+}

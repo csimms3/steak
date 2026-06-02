@@ -1,0 +1,6 @@
+node_modules
+.env
+.next
+/src/generated/prisma
+prisma/config.ts
+

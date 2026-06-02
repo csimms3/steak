@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { Flame, Dice5, Grid2x2, CircleDot } from "lucide-react";
 

@@ -139,8 +139,8 @@ function PlinkoBoard({
               transform: `translate(${x}px, ${y}px)`,
               transition: `transform ${stepMs * 0.82}ms cubic-bezier(0.25, 0.46, 0.45, 0.94)`,
               filter: landed
-                ? "drop-shadow(0 0 4px rgba(244,140,6,0.7))"
-                : "drop-shadow(0 0 7px rgba(232,93,4,0.95))",
+                ? "drop-shadow(0 0 2px rgba(244,140,6,0.4))"
+                : "drop-shadow(0 0 2px rgba(232,93,4,0.5))",
             }}
           />
         );
@@ -182,8 +182,8 @@ export default function PlinkoPage() {
   const rowsRef = useRef(rows);
   useEffect(() => { rowsRef.current = rows; }, [rows]);
 
-  // Step ms: faster for more balls so animation stays snappy
-  const stepMs = ballCount > 25 ? 60 : ballCount > 5 ? 80 : 110;
+  // Step ms: scales with ball count so large drops stay watchable
+  const stepMs = ballCount > 25 ? 140 : ballCount > 5 ? 200 : 280;
 
   // Detect when all balls have landed
   useEffect(() => {

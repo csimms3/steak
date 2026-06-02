@@ -1,65 +1,87 @@
-import Image from "next/image";
+import Link from "next/link";
+import { Flame, Dice5, Grid2x2, CircleDot } from "lucide-react";
 
-export default function Home() {
+const GAMES = [
+  {
+    href: "/games/crash",
+    label: "Crash",
+    icon: Flame,
+    description: "Watch the multiplier climb. Cash out before it crashes.",
+    color: "from-orange-600/20 to-red-900/20",
+    iconColor: "text-orange-400",
+    badge: "Multiplayer",
+  },
+  {
+    href: "/games/dice",
+    label: "Dice",
+    icon: Dice5,
+    description: "Predict whether the roll lands over or under your target.",
+    color: "from-blue-600/20 to-indigo-900/20",
+    iconColor: "text-blue-400",
+    badge: "Classic",
+  },
+  {
+    href: "/games/mines",
+    label: "Mines",
+    icon: Grid2x2,
+    description: "Reveal tiles on a 5×5 grid. Avoid the mines. Cash out any time.",
+    color: "from-emerald-600/20 to-green-900/20",
+    iconColor: "text-emerald-400",
+    badge: "Strategy",
+  },
+  {
+    href: "/games/plinko",
+    label: "Plinko",
+    icon: CircleDot,
+    description: "Drop a ball through a pegged board and hit the multiplier buckets.",
+    color: "from-purple-600/20 to-violet-900/20",
+    iconColor: "text-purple-400",
+    badge: "Luck",
+  },
+];
+
+export default function LobbyPage() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div className="max-w-5xl mx-auto space-y-8">
+      {/* Hero */}
+      <div className="pt-4">
+        <h1 className="text-3xl font-black text-[var(--text)] tracking-tight">
+          Welcome to <span className="text-[var(--accent)]">Steak</span>
+        </h1>
+        <p className="mt-1 text-[var(--muted)] text-sm">
+          Provably fair originals · Play money only · No real wagering
+        </p>
+      </div>
+
+      {/* Game grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
+        {GAMES.map(({ href, label, icon: Icon, description, color, iconColor, badge }) => (
+          <Link
+            key={href}
+            href={href}
+            className={`group relative flex flex-col gap-4 p-6 rounded-2xl bg-gradient-to-br ${color} border border-[var(--border)] hover:border-[var(--accent)] transition-all duration-200 hover:scale-[1.01]`}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+            <div className="flex items-start justify-between">
+              <div className={`p-3 rounded-xl bg-[var(--surface)] border border-[var(--border)] ${iconColor}`}>
+                <Icon size={24} />
+              </div>
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-[var(--muted)] bg-[var(--surface)] border border-[var(--border)] rounded-full px-2.5 py-1">
+                {badge}
+              </span>
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-[var(--text)] group-hover:text-[var(--accent)] transition-colors">
+                {label}
+              </h2>
+              <p className="mt-1 text-sm text-[var(--muted)] leading-relaxed">{description}</p>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-[var(--accent)] font-semibold mt-auto">
+              Play now
+              <span className="group-hover:translate-x-1 transition-transform">→</span>
+            </div>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }

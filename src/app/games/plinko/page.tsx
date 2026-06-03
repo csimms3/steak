@@ -32,13 +32,12 @@ const bucketY = (rows: number) => TOP_Y + rows * rowH(rows) + 8;
 
 // ─── Physics constants ────────────────────────────────────────────────────────
 
-const GRAVITY   = 0.22;   // px / frame²
-const BOUNCE_VY = -1.2;   // upward kick on peg hit (px/frame)
+const GRAVITY   = 0.045;  // px / frame²
+const BOUNCE_VY = -0.8;   // upward kick on peg hit — gives ~7px visible arc at this gravity
 const BALL_R    = 5;
 
-/** Horizontal speed after deflection — scales with bucket width so the ball
- *  travels roughly one column per peg regardless of row count. */
-const deflectVX = (rows: number) => spacing(rows) * 0.048;
+/** Horizontal speed after deflection — calibrated so ball travels ~1 column per row at GRAVITY=0.045. */
+const deflectVX = (rows: number) => spacing(rows) * 0.014;
 
 // ─── Ball physics state ───────────────────────────────────────────────────────
 
@@ -105,7 +104,7 @@ function PlinkoBoard({
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !running) return;
+    if (!canvas) return;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -117,10 +116,12 @@ function PlinkoBoard({
     canvas.style.height = `${H}px`;
     ctx.scale(dpr, dpr);
 
-    const draw = () => {
-      ctx.clearRect(0, 0, W, H);
+    const bY  = bucketY(rows);
+    const bH  = BUCKET_H - 16;
+    const bW  = sp - 3;
+    const fs  = Math.max(7, Math.min(11, sp * 0.52));
 
-      // ── Pegs ──
+    const drawPegsAndBuckets = (landCount: Record<number, number> = {}) => {
       ctx.fillStyle = "rgba(255,255,255,0.22)";
       for (let r = 0; r < rows; r++) {
         for (let j = 0; j <= r; j++) {
@@ -129,25 +130,11 @@ function PlinkoBoard({
           ctx.fill();
         }
       }
-
-      // ── Buckets ──
-      const bY  = bucketY(rows);
-      const bH  = BUCKET_H - 16;
-      const bW  = sp - 3;
-      const fs  = Math.max(7, Math.min(11, sp * 0.52));
-
-      // Count landed balls per bucket
-      const landCount: Record<number, number> = {};
-      for (const b of ballsRef.current) {
-        if (b.landed) landCount[b.bucketIndex] = (landCount[b.bucketIndex] ?? 0) + 1;
-      }
-
       for (let i = 0; i <= rows; i++) {
         const m   = table[i];
         const cx  = bucketCX(i, rows);
         const hit = landCount[i] ?? 0;
         const x   = cx - bW / 2;
-
         ctx.fillStyle = mFill(m);
         ctx.strokeStyle = mStroke(m);
         ctx.lineWidth = hit > 0 ? 2 : 1;
@@ -155,20 +142,36 @@ function PlinkoBoard({
         ctx.roundRect(x, bY, bW, bH, 3);
         ctx.fill();
         ctx.stroke();
-
         if (hit > 0) {
           ctx.fillStyle = `rgba(255,255,255,${Math.min(0.22, hit * 0.07)})`;
           ctx.beginPath();
           ctx.roundRect(x, bY, bW, bH, 3);
           ctx.fill();
         }
-
         ctx.fillStyle = mText(m);
         ctx.font = `700 ${fs}px system-ui,sans-serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(`${m}×`, cx, bY + bH / 2);
       }
+    };
+
+    // Always draw the static board immediately (pegs + buckets)
+    ctx.clearRect(0, 0, W, H);
+    drawPegsAndBuckets();
+
+    if (!running) return;
+
+    const draw = () => {
+      ctx.clearRect(0, 0, W, H);
+
+      // Count landed balls per bucket
+      const landCount: Record<number, number> = {};
+      for (const b of ballsRef.current) {
+        if (b.landed) landCount[b.bucketIndex] = (landCount[b.bucketIndex] ?? 0) + 1;
+      }
+
+      drawPegsAndBuckets(landCount);
 
       // ── Update + draw balls ──
       let allDone = true;
@@ -186,6 +189,13 @@ function PlinkoBoard({
             ball.vy = BOUNCE_VY;
             if (dir === "R") ball.rCount++;
             ball.nextPeg++;
+          }
+
+          // Past all pegs: spring toward target bucket and dampen lateral drift
+          if (ball.nextPeg >= rows) {
+            const targetX = bucketCX(ball.rCount, rows);
+            ball.vx += (targetX - ball.x) * 0.08;
+            ball.vx *= 0.82;
           }
 
           // Settle into bucket once past all pegs and below bucket line
@@ -407,7 +417,7 @@ export default function PlinkoPage() {
                     className={cn(
                       "py-1.5 rounded-lg border text-xs font-bold transition-all",
                       ballCount === n
-                        ? "bg-purple-500/80 border-purple-400 text-white"
+                        ? "bg-[var(--accent)] border-[var(--accent)] text-white shadow-[0_0_14px_rgba(232,93,4,0.3)]"
                         : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]"
                     )}
                   >

@@ -31,26 +31,79 @@ const bucketCX = (j: number, rows: number) =>
 const bucketY = (rows: number) => TOP_Y + rows * rowH(rows) + 8;
 
 // ─── Physics constants ────────────────────────────────────────────────────────
+//
+// The ball's outcome (its L/R path and final bucket) is decided by the server
+// before the animation runs. So rather than simulate loose collisions — which
+// drift and snap unpredictably — we precompute the exact peg centres the ball
+// visits and animate each hop as a real projectile arc whose launch velocity is
+// solved to land precisely on the next peg. This mirrors Stake: deterministic
+// landing, but a smooth, physical-looking fall with a consistent little bounce.
 
-const GRAVITY   = 0.045;  // px / frame²
-const BOUNCE_VY = -0.8;   // upward kick on peg hit — gives ~7px visible arc at this gravity
-const BALL_R    = 5;
-
-/** Horizontal speed after deflection — calibrated so ball travels ~1 column per row at GRAVITY=0.045. */
-const deflectVX = (rows: number) => spacing(rows) * 0.014;
+const GRAVITY = 0.22;   // px / frame² — sets the overall fall pace
+const BOUNCE  = 1.4;    // upward speed (px/frame) imparted when leaving each peg
+const BALL_R  = 5;
 
 // ─── Ball physics state ───────────────────────────────────────────────────────
 
+interface Pt { x: number; y: number; }
+
 interface PhysBall {
-  x: number;
+  /** Exact centres the ball passes through: spawn → apex peg → … → bucket. */
+  waypoints: Pt[];
+  seg: number;          // index of the hop currently animating (waypoints[seg] → [seg+1])
+  segFrame: number;     // frames elapsed in the current hop
+  segDuration: number;  // total frames for the current hop (fractional)
+  ax: number;           // start x of the current hop
+  ay: number;           // start y of the current hop
+  vx: number;           // constant horizontal speed for the hop
+  vy0: number;          // launch vertical speed (negative = upward bounce)
+  x: number;            // rendered position (evaluated analytically each frame)
   y: number;
-  vx: number;
-  vy: number;
-  path: Array<"L" | "R">;
+  delay: number;        // frames to wait before launching (staggers multi-ball drops)
   bucketIndex: number;
-  nextPeg: number;   // index of the next peg row to hit (0..rows)
-  rCount: number;    // R-moves taken so far
   landed: boolean;
+}
+
+/** Solve launch velocities so a hop from `a` lands exactly on `b` at t = T.
+ *  `bounce` is the upward kick (0 for the initial straight drop into the apex).
+ *  The hop is then evaluated analytically (not Euler-integrated) so the ball
+ *  passes through each peg centre with zero drift — no snapping, no jitter. */
+function setupHop(ball: PhysBall, a: Pt, b: Pt, bounce: number) {
+  const dy = b.y - a.y;            // always > 0 (downward)
+  const dx = b.x - a.x;
+  const vy0 = -bounce;             // negative = upward
+  // dy = vy0·T + ½·g·T²  →  solve the positive root for T
+  const T = (-vy0 + Math.sqrt(vy0 * vy0 + 2 * GRAVITY * dy)) / GRAVITY;
+  ball.ax = a.x;
+  ball.ay = a.y;
+  ball.vx = dx / T;
+  ball.vy0 = vy0;
+  ball.segDuration = T;
+  ball.segFrame = 0;
+}
+
+/** Build the full waypoint chain for a resolved ball path. */
+function buildWaypoints(path: Array<"L" | "R">, rows: number): { waypoints: Pt[]; bucketIndex: number } {
+  const pts: Pt[] = [];
+  // Spawn just above the apex peg so the ball visibly drops in.
+  pts.push({ x: CX, y: TOP_Y - Math.min(30, rowH(rows) * 0.6) });
+
+  // Apex peg, then one peg per row, deflecting L/R per the path.
+  let j = 0;
+  pts.push({ x: pegX(0, 0, rows), y: pegY(0, rows) });
+  for (let r = 0; r < rows; r++) {
+    if (path[r] === "R") j++;
+    if (r < rows - 1) {
+      pts.push({ x: pegX(r + 1, j, rows), y: pegY(r + 1, rows) });
+    }
+  }
+
+  // Final drop into the bucket the ball landed in.
+  const bucketIndex = j;
+  const bH = BUCKET_H - 16;
+  pts.push({ x: bucketCX(bucketIndex, rows), y: bucketY(rows) + bH * 0.5 });
+
+  return { waypoints: pts, bucketIndex };
 }
 
 // ─── Multiplier colour helpers ────────────────────────────────────────────────
@@ -97,10 +150,8 @@ function PlinkoBoard({
   const rafRef    = useRef<number>(0);
   const table     = getMultiplierTable(rows, risk);
   const sp        = spacing(rows);
-  const rh        = rowH(rows);
   const pr        = Math.max(3, 4.5 - (rows - 8) * 0.12); // peg radius
   const dpr       = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
-  const dvx       = deflectVX(rows);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -177,35 +228,28 @@ function PlinkoBoard({
       let allDone = true;
       for (const ball of ballsRef.current) {
         if (!ball.landed) {
-          // Physics step
-          ball.vy += GRAVITY;
-          ball.x  += ball.vx;
-          ball.y  += ball.vy;
-
-          // Peg collision — may pass through multiple peg rows in one frame
-          while (ball.nextPeg < rows && ball.y >= pegY(ball.nextPeg, rows)) {
-            const dir = ball.path[ball.nextPeg];
-            ball.vx = dvx * (dir === "R" ? 1 : -1);
-            ball.vy = BOUNCE_VY;
-            if (dir === "R") ball.rCount++;
-            ball.nextPeg++;
-          }
-
-          // Past all pegs: spring toward target bucket and dampen lateral drift
-          if (ball.nextPeg >= rows) {
-            const targetX = bucketCX(ball.rCount, rows);
-            ball.vx += (targetX - ball.x) * 0.08;
-            ball.vx *= 0.82;
-          }
-
-          // Settle into bucket once past all pegs and below bucket line
-          if (ball.nextPeg >= rows && ball.y >= bY + bH * 0.5) {
-            ball.landed = true;
-            ball.x = bucketCX(ball.rCount, rows);
-            ball.y = bY + bH * 0.5;
-          }
-
           allDone = false;
+
+          if (ball.delay > 0) {
+            ball.delay--;            // still waiting to launch — hold at spawn
+          } else {
+            // Evaluate the projectile analytically: position is exact at the
+            // peg when segFrame reaches segDuration, so the last frame is clamped
+            // and the ball lands dead-on with no snap.
+            ball.segFrame++;
+            const tf = Math.min(ball.segFrame, ball.segDuration);
+            ball.x = ball.ax + ball.vx * tf;
+            ball.y = ball.ay + ball.vy0 * tf + 0.5 * GRAVITY * tf * tf;
+
+            if (ball.segFrame >= ball.segDuration) {
+              ball.seg++;
+              if (ball.seg >= ball.waypoints.length - 1) {
+                ball.landed = true;  // reached the bucket
+              } else {
+                setupHop(ball, ball.waypoints[ball.seg], ball.waypoints[ball.seg + 1], BOUNCE);
+              }
+            }
+          }
         }
 
         // Draw
@@ -302,18 +346,29 @@ export default function PlinkoPage() {
       totalProfitRef.current = total;
       setLastResult(results[results.length - 1]);
 
-      // Init physics balls — all start at top center
-      ballsRef.current = results.map(r => ({
-        x: CX + (Math.random() - 0.5) * 2, // tiny ±1px jitter so they don't overlap perfectly
-        y: TOP_Y - rowH(rows) * 0.8,
-        vx: 0,
-        vy: 0,
-        path: r.path,
-        bucketIndex: r.bucketIndex,
-        nextPeg: 0,
-        rCount: 0,
-        landed: false,
-      }));
+      // Build a waypoint chain per ball and prime its first hop.
+      // A light per-ball delay staggers simultaneous drops into a cascade.
+      ballsRef.current = results.map((r, i) => {
+        const { waypoints, bucketIndex } = buildWaypoints(r.path, rows);
+        const ball: PhysBall = {
+          waypoints,
+          seg: 0,
+          segFrame: 0,
+          segDuration: 1,
+          ax: waypoints[0].x,
+          ay: waypoints[0].y,
+          vx: 0,
+          vy0: 0,
+          x: waypoints[0].x,
+          y: waypoints[0].y,
+          delay: Math.min(i * 2, 120),
+          bucketIndex,
+          landed: false,
+        };
+        // Initial drop into the apex has no bounce kick.
+        setupHop(ball, waypoints[0], waypoints[1], 0);
+        return ball;
+      });
 
     } catch {
       setDropping(false);

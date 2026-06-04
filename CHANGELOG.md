@@ -9,6 +9,9 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 - Game library expansion (v0.3.0) foundation: shared provably-fair card engine (`src/lib/game-engine/cards.ts`) with 52-card shuffle and blackjack/baccarat/poker hand evaluators; reusable game-state codec (`src/lib/game-engine/state.ts`); shared UI primitives (`GameShell`, `PlayingCard`, `ResultBanner`)
+- **Limbo** — set a target multiplier and beat a provably-fair result (1% edge), animated count-up + recent-results strip
+- **Wheel** — canvas spin wheel with low/medium/high risk and 10–50 segments (~0.96 RTP), pointer-aligned landing
+- **Flip** — pick a side and chain a target streak (1–10) at 1.98× per flip, sequential coin reveal
 - Full casino UI: lobby, Dice, Mines, Plinko, Crash game pages
 - Provably fair game engine (`src/lib/game-engine/`) — HMAC-SHA256 seed chain for Dice, Crash, Mines, Plinko
 - Mock chip balance via React Context (`BalanceContext`) — no auth required for MVP

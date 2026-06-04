@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Flame, Dice5, Grid2x2, CircleDot, Zap, Home } from "lucide-react";
+import { Flame, Dice5, Grid2x2, CircleDot, Rocket, Disc3, CircleDollarSign, Zap, Home } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const NAV = [
@@ -11,6 +11,9 @@ const NAV = [
   { href: "/games/dice", label: "Dice", icon: Dice5 },
   { href: "/games/mines", label: "Mines", icon: Grid2x2 },
   { href: "/games/plinko", label: "Plinko", icon: CircleDot },
+  { href: "/games/limbo", label: "Limbo", icon: Rocket },
+  { href: "/games/wheel", label: "Wheel", icon: Disc3 },
+  { href: "/games/flip", label: "Flip", icon: CircleDollarSign },
 ];
 
 export function Sidebar() {

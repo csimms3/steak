@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Flame, Dice5, Grid2x2, CircleDot } from "lucide-react";
+import { Flame, Dice5, Grid2x2, CircleDot, Rocket, Disc3, CircleDollarSign } from "lucide-react";
 
 const GAMES = [
   {
@@ -39,6 +39,33 @@ const GAMES = [
     color: "from-purple-600/20 to-violet-900/20",
     iconColor: "text-purple-400",
     badge: "Luck",
+  },
+  {
+    href: "/games/limbo",
+    label: "Limbo",
+    icon: Rocket,
+    description: "Set a target multiplier and beat it. How high can you go?",
+    color: "from-sky-600/20 to-cyan-900/20",
+    iconColor: "text-sky-400",
+    badge: "Instant",
+  },
+  {
+    href: "/games/wheel",
+    label: "Wheel",
+    icon: Disc3,
+    description: "Spin the wheel, pick your risk, and land on a multiplier.",
+    color: "from-rose-600/20 to-pink-900/20",
+    iconColor: "text-rose-400",
+    badge: "Luck",
+  },
+  {
+    href: "/games/flip",
+    label: "Flip",
+    icon: CircleDollarSign,
+    description: "Call heads or tails and chain a streak for 1.98× each flip.",
+    color: "from-amber-600/20 to-yellow-900/20",
+    iconColor: "text-amber-400",
+    badge: "Instant",
   },
 ];
 

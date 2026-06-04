@@ -8,6 +8,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- Game library expansion (v0.3.0) foundation: shared provably-fair card engine (`src/lib/game-engine/cards.ts`) with 52-card shuffle and blackjack/baccarat/poker hand evaluators; reusable game-state codec (`src/lib/game-engine/state.ts`); shared UI primitives (`GameShell`, `PlayingCard`, `ResultBanner`)
 - Full casino UI: lobby, Dice, Mines, Plinko, Crash game pages
 - Provably fair game engine (`src/lib/game-engine/`) — HMAC-SHA256 seed chain for Dice, Crash, Mines, Plinko
 - Mock chip balance via React Context (`BalanceContext`) — no auth required for MVP

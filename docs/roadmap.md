@@ -46,6 +46,32 @@
 
 ---
 
+## v0.3.0 — Game Library Expansion
+
+**Goal**: Grow from 4 games to a full Stake-style library of 18, built in tiers from
+simplest to most complex on the existing mock-balance foundation.
+**Target**: TBD
+
+### Games (14 new)
+- **Instant**: Limbo, Wheel, Flip
+- **Multi-draw**: Keno, Diamonds
+- **Stateful step**: Hilo, Dragon Tower
+- **Card table**: Blackjack, Video Poker
+- **Wheel/table classics**: Roulette, Baccarat
+- **Reveal/luck**: Cases, Scratch, Slots
+
+### Foundation
+- Shared provably-fair card engine (`cards.ts`) — 52-card shuffle, blackjack/baccarat/poker evaluators
+- Reusable opaque game-state codec (`state.ts`)
+- Shared UI: `GameShell`, `PlayingCard`, `ResultBanner`
+
+### Done when
+- Each game has engine + unit tests + API route(s) + page + lobby/nav registration
+- All games resolve deterministically from seeds and self-verify provably fair
+- Full suite (typecheck, lint, test) green
+
+---
+
 ## v1.0.0 — Stable Release
 
 **Goal**: Production-ready. Stable public API. Full documentation. Breaking changes require a major version bump from this point.

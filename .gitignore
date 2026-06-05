@@ -4,3 +4,6 @@ node_modules
 /src/generated/prisma
 prisma/config.ts
 
+# Local agent / editor config — not for version control
+.claude/
+

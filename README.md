@@ -33,7 +33,3 @@ Open [http://localhost:3000](http://localhost:3000) — register an account and 
 - [Roadmap](docs/roadmap.md)
 - [Contributing](CONTRIBUTING.md)
 - [Changelog](CHANGELOG.md)
-
-## License
-
-MIT — see [LICENSE](LICENSE) for details.

@@ -127,24 +127,24 @@ export default function WheelPage() {
   return (
     <GameShell title="Wheel" subtitle="Spin the wheel · Pick your risk · Land a multiplier"
       icon={Disc3} iconClass="bg-rose-500/10 border-rose-500/20 text-rose-400" fair={fair}>
-      {/* Wheel display — full width, centered */}
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 flex flex-col items-center">
-        <div className="relative" style={{ width: SIZE, height: SIZE, maxWidth: "100%" }}>
-          <div className="absolute left-1/2 -translate-x-1/2 -top-1 z-10"
-            style={{ width: 0, height: 0, borderLeft: "10px solid transparent", borderRight: "10px solid transparent", borderTop: "16px solid var(--accent)" }} />
-          <canvas ref={canvasRef}
-            style={{ width: SIZE, height: SIZE, maxWidth: "100%", transform: `rotate(${rotation}deg)`,
-              transition: spinning ? "transform 4s cubic-bezier(0.16,1,0.3,1)" : "none" }} />
+      <div className="flex flex-col lg:flex-row gap-4">
+        {/* Wheel display — fills available space */}
+        <div className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 flex flex-col items-center justify-center min-h-[260px]">
+          <div className="relative" style={{ width: SIZE, height: SIZE, maxWidth: "100%" }}>
+            <div className="absolute left-1/2 -translate-x-1/2 -top-1 z-10"
+              style={{ width: 0, height: 0, borderLeft: "10px solid transparent", borderRight: "10px solid transparent", borderTop: "16px solid var(--accent)" }} />
+            <canvas ref={canvasRef}
+              style={{ width: SIZE, height: SIZE, maxWidth: "100%", transform: `rotate(${rotation}deg)`,
+                transition: spinning ? "transform 4s cubic-bezier(0.16,1,0.3,1)" : "none" }} />
+          </div>
+          <div className="min-h-[24px] mt-3">
+            <ResultBanner profit={last ? last.profit : null} label={last ? `${last.multiplier}×` : undefined} />
+          </div>
         </div>
-        <div className="min-h-[24px] mt-3">
-          <ResultBanner profit={last ? last.profit : null} label={last ? `${last.multiplier}×` : undefined} />
-        </div>
-      </div>
 
-      {/* Controls — horizontal row on desktop */}
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4">
-        <div className="flex flex-col md:flex-row md:items-end gap-3">
-          <div className="space-y-1.5 md:w-44">
+        {/* Controls panel */}
+        <div className="w-full lg:w-72 shrink-0 bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 space-y-4">
+          <div className="space-y-1.5">
             <label className="text-xs text-[var(--muted)] uppercase tracking-wider">Risk</label>
             <div className="flex gap-1.5">
               {RISKS.map((r) => (
@@ -157,12 +157,12 @@ export default function WheelPage() {
               ))}
             </div>
           </div>
-          <div className="space-y-1.5 md:w-52">
+          <div className="space-y-1.5">
             <label className="text-xs text-[var(--muted)] uppercase tracking-wider">Segments</label>
             <div className="grid grid-cols-5 gap-1.5">
               {SEGMENTS_OPTS.map((s) => (
                 <button key={s} onClick={() => setSegments(s)} disabled={spinning}
-                  className={cn("py-2 rounded-lg border text-xs font-bold transition-all",
+                  className={cn("py-1.5 rounded-lg border text-xs font-bold transition-all",
                     segments === s ? "bg-[var(--accent)] border-[var(--accent)] text-white"
                       : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]")}>
                   {s}
@@ -170,11 +170,9 @@ export default function WheelPage() {
               ))}
             </div>
           </div>
-          <div className="flex-1">
-            <BetInput value={betAmount} onChange={setBetAmount} disabled={spinning} />
-          </div>
+          <BetInput value={betAmount} onChange={setBetAmount} disabled={spinning} />
           <button onClick={spin} disabled={spinning || betAmount > balance}
-            className={cn("w-full md:w-36 py-3 rounded-xl font-black text-base transition-all shrink-0",
+            className={cn("w-full py-3 rounded-xl font-black text-base transition-all",
               "bg-[var(--accent)] text-white hover:opacity-90 active:scale-[0.99]",
               "shadow-[0_0_25px_rgba(232,93,4,0.2)] hover:shadow-[0_0_35px_rgba(232,93,4,0.4)]",
               "disabled:opacity-40 disabled:cursor-not-allowed")}>

@@ -79,28 +79,28 @@ export default function FlipPage() {
   return (
     <GameShell title="Flip" subtitle="Pick a side · Chain a streak · 1.98× per flip"
       icon={CircleDollarSign} iconClass="bg-amber-500/10 border-amber-500/20 text-amber-400" fair={fair}>
-      <div className="flex flex-col md:flex-row-reverse gap-4">
-        {/* Coin display — fills available space */}
-        <div className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-2xl flex flex-col items-center justify-center py-12 px-4 min-h-[280px]">
-          <div className="flex flex-wrap justify-center gap-2">
-            {Array.from({ length: targetStreak }).map((_, i) => (
-              <Coin key={i} side={revealed[i] ?? null} revealed={i < revealed.length} />
-            ))}
-          </div>
-          <div className="min-h-[24px] mt-6">
-            <ResultBanner profit={last ? last.profit : null}
-              label={last ? (last.win ? `${last.multiplier.toFixed(2)}×` : `Broke at ${last.streak}/${last.targetStreak}`) : undefined} />
-          </div>
+      {/* Coin display — full width */}
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl flex flex-col items-center justify-center py-16 px-4">
+        <div className="flex flex-wrap justify-center gap-2">
+          {Array.from({ length: targetStreak }).map((_, i) => (
+            <Coin key={i} side={revealed[i] ?? null} revealed={i < revealed.length} />
+          ))}
         </div>
+        <div className="min-h-[24px] mt-6">
+          <ResultBanner profit={last ? last.profit : null}
+            label={last ? (last.win ? `${last.multiplier.toFixed(2)}×` : `Broke at ${last.streak}/${last.targetStreak}`) : undefined} />
+        </div>
+      </div>
 
-        {/* Controls panel */}
-        <div className="w-full md:w-72 shrink-0 bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 space-y-4">
-          <div className="space-y-1.5">
+      {/* Controls — horizontal row on desktop */}
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4">
+        <div className="flex flex-col md:flex-row md:items-end gap-3">
+          <div className="space-y-1.5 md:w-40">
             <label className="text-xs text-[var(--muted)] uppercase tracking-wider">Side</label>
             <div className="grid grid-cols-2 gap-1.5">
               {(["heads", "tails"] as Side[]).map((s) => (
                 <button key={s} onClick={() => setSide(s)} disabled={flipping}
-                  className={cn("py-2.5 rounded-lg border text-sm font-bold capitalize transition-all",
+                  className={cn("py-2 rounded-lg border text-xs font-bold capitalize transition-all",
                     side === s ? "bg-[var(--accent)] border-[var(--accent)] text-white shadow-[0_0_14px_rgba(232,93,4,0.3)]"
                       : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]")}>
                   {s}
@@ -108,15 +108,14 @@ export default function FlipPage() {
               ))}
             </div>
           </div>
-
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 flex-1">
             <label className="text-xs text-[var(--muted)] uppercase tracking-wider">
               Target Streak · <span className="text-[var(--accent)]">{multiplier.toFixed(2)}×</span>
             </label>
-            <div className="grid grid-cols-5 gap-1.5">
+            <div className="grid grid-cols-10 gap-1">
               {STREAKS.map((n) => (
                 <button key={n} onClick={() => setTargetStreak(n)} disabled={flipping}
-                  className={cn("py-1.5 rounded-lg border text-xs font-bold transition-all",
+                  className={cn("py-2 rounded-lg border text-xs font-bold transition-all",
                     targetStreak === n ? "bg-[var(--accent)] border-[var(--accent)] text-white"
                       : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]")}>
                   {n}
@@ -124,11 +123,11 @@ export default function FlipPage() {
               ))}
             </div>
           </div>
-
-          <BetInput value={betAmount} onChange={setBetAmount} disabled={flipping} />
-
+          <div className="md:w-52">
+            <BetInput value={betAmount} onChange={setBetAmount} disabled={flipping} />
+          </div>
           <button onClick={flip} disabled={flipping || betAmount > balance}
-            className={cn("w-full py-3 rounded-xl font-black text-base transition-all",
+            className={cn("w-full md:w-36 py-3 rounded-xl font-black text-base transition-all shrink-0",
               "bg-[var(--accent)] text-white hover:opacity-90 active:scale-[0.99]",
               "shadow-[0_0_25px_rgba(232,93,4,0.2)] hover:shadow-[0_0_35px_rgba(232,93,4,0.4)]",
               "disabled:opacity-40 disabled:cursor-not-allowed")}>

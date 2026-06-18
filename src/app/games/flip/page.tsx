@@ -79,60 +79,62 @@ export default function FlipPage() {
   return (
     <GameShell title="Flip" subtitle="Pick a side · Chain a streak · 1.98× per flip"
       icon={CircleDollarSign} iconClass="bg-amber-500/10 border-amber-500/20 text-amber-400" fair={fair}>
-      {/* Coins */}
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl py-12 px-4">
-        <div className="flex flex-wrap justify-center gap-2">
-          {Array.from({ length: targetStreak }).map((_, i) => (
-            <Coin key={i} side={revealed[i] ?? null} revealed={i < revealed.length} />
-          ))}
-        </div>
-        <div className="min-h-[24px] mt-6">
-          <ResultBanner profit={last ? last.profit : null}
-            label={last ? (last.win ? `${last.multiplier.toFixed(2)}×` : `Broke at ${last.streak}/${last.targetStreak}`) : undefined} />
-        </div>
-      </div>
-
-      {/* Controls */}
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 space-y-4">
-        <div className="space-y-1.5">
-          <label className="text-xs text-[var(--muted)] uppercase tracking-wider">Side</label>
-          <div className="grid grid-cols-2 gap-1.5">
-            {(["heads", "tails"] as Side[]).map((s) => (
-              <button key={s} onClick={() => setSide(s)} disabled={flipping}
-                className={cn("py-2.5 rounded-lg border text-sm font-bold capitalize transition-all",
-                  side === s ? "bg-[var(--accent)] border-[var(--accent)] text-white shadow-[0_0_14px_rgba(232,93,4,0.3)]"
-                    : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]")}>
-                {s}
-              </button>
+      <div className="flex flex-col md:flex-row-reverse gap-4">
+        {/* Coin display — fills available space */}
+        <div className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-2xl flex flex-col items-center justify-center py-12 px-4 min-h-[280px]">
+          <div className="flex flex-wrap justify-center gap-2">
+            {Array.from({ length: targetStreak }).map((_, i) => (
+              <Coin key={i} side={revealed[i] ?? null} revealed={i < revealed.length} />
             ))}
+          </div>
+          <div className="min-h-[24px] mt-6">
+            <ResultBanner profit={last ? last.profit : null}
+              label={last ? (last.win ? `${last.multiplier.toFixed(2)}×` : `Broke at ${last.streak}/${last.targetStreak}`) : undefined} />
           </div>
         </div>
 
-        <div className="space-y-1.5">
-          <label className="text-xs text-[var(--muted)] uppercase tracking-wider">
-            Target Streak · <span className="text-[var(--accent)]">{multiplier.toFixed(2)}×</span>
-          </label>
-          <div className="grid grid-cols-5 gap-1.5">
-            {STREAKS.map((n) => (
-              <button key={n} onClick={() => setTargetStreak(n)} disabled={flipping}
-                className={cn("py-1.5 rounded-lg border text-xs font-bold transition-all",
-                  targetStreak === n ? "bg-[var(--accent)] border-[var(--accent)] text-white"
-                    : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]")}>
-                {n}
-              </button>
-            ))}
+        {/* Controls panel */}
+        <div className="w-full md:w-72 shrink-0 bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-xs text-[var(--muted)] uppercase tracking-wider">Side</label>
+            <div className="grid grid-cols-2 gap-1.5">
+              {(["heads", "tails"] as Side[]).map((s) => (
+                <button key={s} onClick={() => setSide(s)} disabled={flipping}
+                  className={cn("py-2.5 rounded-lg border text-sm font-bold capitalize transition-all",
+                    side === s ? "bg-[var(--accent)] border-[var(--accent)] text-white shadow-[0_0_14px_rgba(232,93,4,0.3)]"
+                      : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]")}>
+                  {s}
+                </button>
+              ))}
+            </div>
           </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs text-[var(--muted)] uppercase tracking-wider">
+              Target Streak · <span className="text-[var(--accent)]">{multiplier.toFixed(2)}×</span>
+            </label>
+            <div className="grid grid-cols-5 gap-1.5">
+              {STREAKS.map((n) => (
+                <button key={n} onClick={() => setTargetStreak(n)} disabled={flipping}
+                  className={cn("py-1.5 rounded-lg border text-xs font-bold transition-all",
+                    targetStreak === n ? "bg-[var(--accent)] border-[var(--accent)] text-white"
+                      : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]")}>
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <BetInput value={betAmount} onChange={setBetAmount} disabled={flipping} />
+
+          <button onClick={flip} disabled={flipping || betAmount > balance}
+            className={cn("w-full py-3 rounded-xl font-black text-base transition-all",
+              "bg-[var(--accent)] text-white hover:opacity-90 active:scale-[0.99]",
+              "shadow-[0_0_25px_rgba(232,93,4,0.2)] hover:shadow-[0_0_35px_rgba(232,93,4,0.4)]",
+              "disabled:opacity-40 disabled:cursor-not-allowed")}>
+            {flipping ? "Flipping…" : targetStreak === 1 ? "Flip" : `Flip ${targetStreak}×`}
+          </button>
         </div>
-
-        <BetInput value={betAmount} onChange={setBetAmount} disabled={flipping} />
-
-        <button onClick={flip} disabled={flipping || betAmount > balance}
-          className={cn("w-full py-3 rounded-xl font-black text-base transition-all",
-            "bg-[var(--accent)] text-white hover:opacity-90 active:scale-[0.99]",
-            "shadow-[0_0_25px_rgba(232,93,4,0.2)] hover:shadow-[0_0_35px_rgba(232,93,4,0.4)]",
-            "disabled:opacity-40 disabled:cursor-not-allowed")}>
-          {flipping ? "Flipping…" : targetStreak === 1 ? "Flip" : `Flip ${targetStreak}×`}
-        </button>
       </div>
     </GameShell>
   );

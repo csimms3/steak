@@ -200,7 +200,7 @@ export default function DicePage() {
   const isWin = result?.win ?? null;
 
   return (
-    <div className="max-w-xl mx-auto space-y-4">
+    <div className="w-full space-y-4">
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20">

@@ -127,9 +127,9 @@ export default function WheelPage() {
   return (
     <GameShell title="Wheel" subtitle="Spin the wheel · Pick your risk · Land a multiplier"
       icon={Disc3} iconClass="bg-rose-500/10 border-rose-500/20 text-rose-400" fair={fair}>
-      <div className="flex flex-col lg:flex-row gap-4">
-        {/* Wheel */}
-        <div className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 flex flex-col items-center">
+      <div className="flex flex-col md:flex-row-reverse gap-4">
+        {/* Wheel display — fills available space */}
+        <div className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 flex flex-col items-center justify-center min-h-[280px]">
           <div className="relative" style={{ width: SIZE, height: SIZE, maxWidth: "100%" }}>
             {/* pointer */}
             <div className="absolute left-1/2 -translate-x-1/2 -top-1 z-10"
@@ -144,7 +144,7 @@ export default function WheelPage() {
         </div>
 
         {/* Controls */}
-        <div className="lg:w-64 space-y-3">
+        <div className="w-full md:w-72 shrink-0 space-y-3">
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 space-y-4">
             <div className="space-y-1.5">
               <label className="text-xs text-[var(--muted)] uppercase tracking-wider">Risk</label>

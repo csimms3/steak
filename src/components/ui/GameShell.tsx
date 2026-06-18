@@ -17,29 +17,20 @@ interface GameShellProps {
   icon: LucideIcon;
   /** Tailwind classes for the icon tile, e.g. "bg-purple-500/10 border-purple-500/20 text-purple-400". */
   iconClass?: string;
-  /** Max content width. Most games use 2xl; table games use 4xl. */
-  width?: "2xl" | "4xl";
   fair?: ProvablyFair | null;
   children: ReactNode;
 }
 
-/**
- * Standard game-page wrapper: header (icon + title + subtitle), body, and a
- * collapsible provably-fair disclosure. Replaces the per-page header/details
- * boilerplate repeated across the original game pages.
- */
 export function GameShell({
   title,
   subtitle,
   icon: Icon,
   iconClass = "bg-[var(--accent)]/10 border-[var(--accent)]/20 text-[var(--accent)]",
-  width = "2xl",
   fair,
   children,
 }: GameShellProps) {
-  const widthClass = width === "4xl" ? "max-w-4xl" : "max-w-2xl";
   return (
-    <div className={`${widthClass} mx-auto space-y-4`}>
+    <div className="w-full space-y-4">
       <div className="flex items-center gap-3">
         <div className={`p-2 rounded-lg border ${iconClass}`}>
           <Icon size={20} />

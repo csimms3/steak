@@ -69,28 +69,28 @@ export default function LimboPage() {
   return (
     <GameShell title="Limbo" subtitle="Set a target multiplier · Beat it to win · 1% house edge"
       icon={Rocket} iconClass="bg-sky-500/10 border-sky-500/20 text-sky-400" fair={fair}>
-      {/* Result display */}
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl flex flex-col items-center justify-center py-16">
-        <span className={cn("text-6xl font-black tabular-nums transition-colors",
-          won === null ? "text-[var(--muted)]" : won ? "text-[var(--win)]" : "text-[var(--lose)]")}>
-          {display.toFixed(2)}×
-        </span>
-        {history.length > 0 && (
-          <div className="flex flex-wrap justify-center gap-1 mt-6 px-4">
-            {history.map((h, i) => (
-              <span key={i} className={cn("px-2 py-0.5 rounded text-[10px] font-bold border",
-                h.win ? "text-[var(--win)] border-[var(--win)]/30 bg-[var(--win)]/10"
-                      : "text-[var(--lose)] border-[var(--lose)]/30 bg-[var(--lose)]/10")}>
-                {h.result.toFixed(2)}×
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
+      <div className="flex flex-col md:flex-row-reverse gap-4">
+        {/* Result display — fills available space */}
+        <div className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-2xl flex flex-col items-center justify-center py-16 min-h-[280px]">
+          <span className={cn("text-7xl font-black tabular-nums transition-colors",
+            won === null ? "text-[var(--muted)]" : won ? "text-[var(--win)]" : "text-[var(--lose)]")}>
+            {display.toFixed(2)}×
+          </span>
+          {history.length > 0 && (
+            <div className="flex flex-wrap justify-center gap-1 mt-6 px-4">
+              {history.map((h, i) => (
+                <span key={i} className={cn("px-2 py-0.5 rounded text-[10px] font-bold border",
+                  h.win ? "text-[var(--win)] border-[var(--win)]/30 bg-[var(--win)]/10"
+                        : "text-[var(--lose)] border-[var(--lose)]/30 bg-[var(--lose)]/10")}>
+                  {h.result.toFixed(2)}×
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
 
-      {/* Controls */}
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 space-y-4">
-        <div className="grid grid-cols-2 gap-3">
+        {/* Controls panel — fixed width on desktop */}
+        <div className="w-full md:w-72 shrink-0 bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 space-y-4">
           <div className="space-y-1.5">
             <label className="text-xs text-[var(--muted)] uppercase tracking-wider">Target Multiplier</label>
             <div className="relative">
@@ -107,17 +107,17 @@ export default function LimboPage() {
               {winChance.toFixed(2)}%
             </div>
           </div>
+
+          <BetInput value={betAmount} onChange={setBetAmount} disabled={rolling} />
+
+          <button onClick={roll} disabled={rolling || betAmount > balance}
+            className={cn("w-full py-3 rounded-xl font-black text-base transition-all",
+              "bg-[var(--accent)] text-white hover:opacity-90 active:scale-[0.99]",
+              "shadow-[0_0_25px_rgba(232,93,4,0.2)] hover:shadow-[0_0_35px_rgba(232,93,4,0.4)]",
+              "disabled:opacity-40 disabled:cursor-not-allowed")}>
+            {rolling ? "Rolling…" : "Roll"}
+          </button>
         </div>
-
-        <BetInput value={betAmount} onChange={setBetAmount} disabled={rolling} />
-
-        <button onClick={roll} disabled={rolling || betAmount > balance}
-          className={cn("w-full py-3 rounded-xl font-black text-base transition-all",
-            "bg-[var(--accent)] text-white hover:opacity-90 active:scale-[0.99]",
-            "shadow-[0_0_25px_rgba(232,93,4,0.2)] hover:shadow-[0_0_35px_rgba(232,93,4,0.4)]",
-            "disabled:opacity-40 disabled:cursor-not-allowed")}>
-          {rolling ? "Rolling…" : "Roll"}
-        </button>
       </div>
     </GameShell>
   );

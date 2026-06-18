@@ -1,6 +1,7 @@
 "use client";
 
-import { Wallet, RotateCcw } from "lucide-react";
+import Link from "next/link";
+import { Wallet, RotateCcw, Zap } from "lucide-react";
 import { useBalance } from "@/context/BalanceContext";
 
 export function Header() {
@@ -8,8 +9,11 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-10 flex items-center justify-between px-4 md:px-6 h-14 bg-[var(--surface)] border-b border-[var(--border)]">
-      {/* Mobile logo */}
-      <span className="md:hidden text-lg font-black text-[var(--text)] tracking-tight">STEAK</span>
+      {/* Mobile logo — links home (sidebar is hidden below md) */}
+      <Link href="/" className="md:hidden flex items-center gap-1.5 text-lg font-black text-[var(--text)] tracking-tight hover:text-[var(--accent)] transition-colors">
+        <Zap size={18} className="text-[var(--accent)] fill-[var(--accent)]" />
+        STEAK
+      </Link>
 
       <div className="flex-1" />
 

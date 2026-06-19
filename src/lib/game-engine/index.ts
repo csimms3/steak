@@ -8,3 +8,5 @@ export * from "./state";
 export * from "./limbo";
 export * from "./wheel";
 export * from "./flip";
+export * from "./keno";
+export * from "./diamonds";

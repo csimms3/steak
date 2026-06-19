@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Flame, Dice5, Grid2x2, CircleDot, Rocket, Disc3, CircleDollarSign } from "lucide-react";
+import { Flame, Dice5, Grid2x2, CircleDot, Rocket, Disc3, CircleDollarSign, Grid3X3, Gem } from "lucide-react";
 
 const GAMES = [
   {
@@ -66,6 +66,24 @@ const GAMES = [
     color: "from-amber-600/20 to-yellow-900/20",
     iconColor: "text-amber-400",
     badge: "Instant",
+  },
+  {
+    href: "/games/keno",
+    label: "Keno",
+    icon: Grid3X3,
+    description: "Pick 1–10 tiles from a 40-number grid. Match the draw for big multipliers.",
+    color: "from-teal-600/20 to-cyan-900/20",
+    iconColor: "text-teal-400",
+    badge: "Multi-draw",
+  },
+  {
+    href: "/games/diamonds",
+    label: "Diamonds",
+    icon: Gem,
+    description: "Pick 4 tiles and hunt 3 hidden diamonds. Find all 3 for 18×.",
+    color: "from-cyan-600/20 to-sky-900/20",
+    iconColor: "text-cyan-400",
+    badge: "Reveal",
   },
 ];
 

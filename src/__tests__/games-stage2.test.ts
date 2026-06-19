@@ -58,7 +58,8 @@ describe("Keno", () => {
     const N = 30_000;
     const bet = 1000n;
     let net = 0n;
-    for (let n = 0; n < N; n++) net += resolveKeno(ss, cs, n, bet, [1]).profit;
+    // Fixed seeds for deterministic results across environments
+    for (let n = 0; n < N; n++) net += resolveKeno("keno-rtp-server", "keno-rtp-client", n, bet, [1]).profit;
     const rtp = 1 + Number(net) / (N * Number(bet));
     expect(rtp).toBeGreaterThan(0.9);
     expect(rtp).toBeLessThan(1.1);
@@ -116,7 +117,8 @@ describe("Diamonds", () => {
     const N = 50_000;
     const bet = 1000n;
     let net = 0n;
-    for (let n = 0; n < N; n++) net += resolveDiamonds(ss, cs, n, bet, [0, 1, 2, 3]).profit;
+    // Fixed seeds for deterministic results across environments
+    for (let n = 0; n < N; n++) net += resolveDiamonds("diamonds-rtp-server", "diamonds-rtp-client", n, bet, [0, 1, 2, 3]).profit;
     const rtp = 1 + Number(net) / (N * Number(bet));
     expect(rtp).toBeGreaterThan(0.94);
     expect(rtp).toBeLessThan(1.00);

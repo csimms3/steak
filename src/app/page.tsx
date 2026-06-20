@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Flame, Dice5, Grid2x2, CircleDot, Rocket, Disc3, CircleDollarSign, Grid3X3, Gem } from "lucide-react";
+import { Flame, Dice5, Grid2x2, CircleDot, Rocket, Disc3, CircleDollarSign, Grid3X3, Gem, TrendingUp, Castle } from "lucide-react";
 
 const GAMES = [
   {
@@ -66,6 +66,24 @@ const GAMES = [
     color: "from-amber-600/20 to-yellow-900/20",
     iconColor: "text-amber-400",
     badge: "Instant",
+  },
+  {
+    href: "/games/hilo",
+    label: "Hilo",
+    icon: TrendingUp,
+    description: "Guess higher or lower on each card. Compound your winnings and cash out any time.",
+    color: "from-violet-600/20 to-purple-900/20",
+    iconColor: "text-violet-400",
+    badge: "Strategy",
+  },
+  {
+    href: "/games/dragon-tower",
+    label: "Dragon Tower",
+    icon: Castle,
+    description: "Climb 9 rows, avoid the dragons, and cash out before you get burned.",
+    color: "from-orange-600/20 to-amber-900/20",
+    iconColor: "text-orange-400",
+    badge: "Strategy",
   },
   {
     href: "/games/keno",

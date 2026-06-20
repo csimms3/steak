@@ -8,6 +8,8 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Hilo** — deal a card, guess higher or lower on each next card; step multiplier is 0.99/P(win) based on exact rank distribution; cashout any time; bust reveals server seed
+- **Dragon Tower** — 9-row grid, pick the egg and avoid the dragon each row; 4 difficulties (Easy/Medium/Hard/Expert) from 1.32× to 2.97× per row; cashout reveals all dragon positions
 - **Keno** — pick 1–10 tiles from a 40-number grid; server draws 10 distinct tiles via provably-fair Fisher-Yates; payout by hit count per pick tier (~96% RTP); 8×5 grid UI with hit/miss/drawn color coding and live payout table
 - **Diamonds** — pick 4 tiles from a 3×4 grid; server hides 3 diamonds; 0.4×/2×/18× for 1/2/3 hits (~96.5% RTP); reveal animation shows all 12 gem types
 - Game library expansion (v0.3.0) foundation: shared provably-fair card engine (`src/lib/game-engine/cards.ts`) with 52-card shuffle and blackjack/baccarat/poker hand evaluators; reusable game-state codec (`src/lib/game-engine/state.ts`); shared UI primitives (`GameShell`, `PlayingCard`, `ResultBanner`)

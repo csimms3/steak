@@ -10,3 +10,5 @@ export * from "./wheel";
 export * from "./flip";
 export * from "./keno";
 export * from "./diamonds";
+export * from "./hilo";
+export * from "./dragon-tower";

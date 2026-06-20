@@ -4,7 +4,7 @@ import { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 
 export interface ProvablyFair {
-  serverSeed: string;
+  serverSeed?: string;
   serverSeedHash: string;
   clientSeed: string;
   nonce?: number;

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Flame, Dice5, Grid2x2, CircleDot, Rocket, Disc3, CircleDollarSign, Grid3X3, Gem, Zap, Home } from "lucide-react";
+import { Flame, Dice5, Grid2x2, CircleDot, Rocket, Disc3, CircleDollarSign, Grid3X3, Gem, TrendingUp, Castle, Zap, Home } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const NAV = [
@@ -14,6 +14,8 @@ const NAV = [
   { href: "/games/limbo", label: "Limbo", icon: Rocket },
   { href: "/games/wheel", label: "Wheel", icon: Disc3 },
   { href: "/games/flip", label: "Flip", icon: CircleDollarSign },
+  { href: "/games/hilo", label: "Hilo", icon: TrendingUp },
+  { href: "/games/dragon-tower", label: "Dragon Tower", icon: Castle },
   { href: "/games/keno", label: "Keno", icon: Grid3X3 },
   { href: "/games/diamonds", label: "Diamonds", icon: Gem },
 ];

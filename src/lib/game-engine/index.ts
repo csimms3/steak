@@ -12,3 +12,5 @@ export * from "./keno";
 export * from "./diamonds";
 export * from "./hilo";
 export * from "./dragon-tower";
+export * from "./blackjack";
+export * from "./video-poker";

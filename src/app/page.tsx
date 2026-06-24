@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Flame, Dice5, Grid2x2, CircleDot, Rocket, Disc3, CircleDollarSign, Grid3X3, Gem, TrendingUp, Castle } from "lucide-react";
+import { Flame, Dice5, Grid2x2, CircleDot, Rocket, Disc3, CircleDollarSign, Grid3X3, Gem, TrendingUp, Castle, Spade, LayoutGrid } from "lucide-react";
 
 const GAMES = [
   {
@@ -102,6 +102,24 @@ const GAMES = [
     color: "from-cyan-600/20 to-sky-900/20",
     iconColor: "text-cyan-400",
     badge: "Reveal",
+  },
+  {
+    href: "/games/blackjack",
+    label: "Blackjack",
+    icon: Spade,
+    description: "Hit, stand, double, or split. Beat the dealer to 21 for a 3:2 payout.",
+    color: "from-slate-600/20 to-zinc-900/20",
+    iconColor: "text-slate-300",
+    badge: "Classic",
+  },
+  {
+    href: "/games/video-poker",
+    label: "Video Poker",
+    icon: LayoutGrid,
+    description: "Jacks or Better — hold your best cards and draw for the payout.",
+    color: "from-rose-600/20 to-pink-900/20",
+    iconColor: "text-rose-400",
+    badge: "Classic",
   },
 ];
 

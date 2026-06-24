@@ -8,6 +8,8 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Blackjack** — standard rules: hit/stand/double/split (one split, no resplit), dealer stands on soft 17, 3:2 blackjack payout, push on ties
+- **Video Poker** — Jacks or Better, standard 9/6 paytable; deal 5, hold any subset, draw replacements, pay by final hand rank
 - **Hilo** — deal a card, guess higher or lower on each next card; step multiplier is 0.99/P(win) based on exact rank distribution; cashout any time; bust reveals server seed
 - **Dragon Tower** — 9-row grid, pick the egg and avoid the dragon each row; 4 difficulties (Easy/Medium/Hard/Expert) from 1.32× to 2.97× per row; cashout reveals all dragon positions
 - **Keno** — pick 1–10 tiles from a 40-number grid; server draws 10 distinct tiles via provably-fair Fisher-Yates; payout by hit count per pick tier (~96% RTP); 8×5 grid UI with hit/miss/drawn color coding and live payout table

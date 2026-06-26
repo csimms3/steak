@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Wallet, RotateCcw, Zap } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { Wallet, RotateCcw, Zap, Settings } from "lucide-react";
 import { useBalance } from "@/context/BalanceContext";
+import { cn } from "@/lib/cn";
 
 export function Header() {
   const { balance, reset, fmt } = useBalance();
+  const path = usePathname();
 
   return (
     <header className="sticky top-0 z-10 flex items-center justify-between px-4 md:px-6 h-14 bg-[var(--surface)] border-b border-[var(--border)]">
@@ -26,12 +29,24 @@ export function Header() {
         </div>
         <button
           onClick={reset}
-          title="Reset balance to $1,000"
+          title="Reset balance to your configured starting amount"
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-xs text-[var(--muted)] hover:text-[var(--text)] hover:border-[var(--accent)] transition-colors"
         >
           <RotateCcw size={12} />
           Reset
         </button>
+        <Link
+          href="/settings"
+          title="Settings"
+          className={cn(
+            "flex items-center justify-center w-8 h-8 rounded-lg border transition-colors",
+            path === "/settings"
+              ? "bg-[var(--accent)] border-[var(--accent)] text-white"
+              : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)] hover:border-[var(--accent)]"
+          )}
+        >
+          <Settings size={14} />
+        </Link>
       </div>
     </header>
   );

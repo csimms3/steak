@@ -13,10 +13,11 @@ interface StoredSettings {
 interface SettingsContextValue {
   clientSeed: string;
   setClientSeed: (seed: string) => void;
-  randomizeClientSeed: () => void;
+  /** Returns the newly generated seed so callers can sync local UI state without an effect. */
+  randomizeClientSeed: () => string;
   startingBalance: number;
   setStartingBalance: (amount: number) => void;
-  resetToDefaults: () => void;
+  resetToDefaults: () => StoredSettings;
 }
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);
@@ -63,12 +64,17 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setClientSeed = useCallback((seed: string) => persist({ clientSeed: seed }), [persist]);
-  const randomizeClientSeed = useCallback(() => persist({ clientSeed: randomHex(8) }), [persist]);
+  const randomizeClientSeed = useCallback(() => {
+    const seed = randomHex(8);
+    persist({ clientSeed: seed });
+    return seed;
+  }, [persist]);
   const setStartingBalance = useCallback((amount: number) => persist({ startingBalance: amount }), [persist]);
-  const resetToDefaults = useCallback(
-    () => persist({ clientSeed: randomHex(8), startingBalance: DEFAULT_STARTING_BALANCE }),
-    [persist]
-  );
+  const resetToDefaults = useCallback(() => {
+    const fresh: StoredSettings = { clientSeed: randomHex(8), startingBalance: DEFAULT_STARTING_BALANCE };
+    persist(fresh);
+    return fresh;
+  }, [persist]);
 
   return (
     <SettingsContext.Provider value={{

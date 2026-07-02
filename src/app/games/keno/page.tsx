@@ -6,6 +6,7 @@ import { BetInput } from "@/components/ui/BetInput";
 import { GameShell, type ProvablyFair } from "@/components/ui/GameShell";
 import { ResultBanner } from "@/components/ui/ResultBanner";
 import { useBalance } from "@/context/BalanceContext";
+import { useSettings } from "@/context/SettingsContext";
 import { getKenoMultiplier, type KenoSpot } from "@/lib/game-engine/keno";
 import { cn } from "@/lib/cn";
 
@@ -29,6 +30,7 @@ function PayoutRow({ picks, hits }: { picks: number; hits: number }) {
 
 export default function KenoPage() {
   const { applyProfit, balance } = useBalance();
+  const { clientSeed } = useSettings();
   const [betAmount, setBetAmount] = useState(100_00);
   const [picks, setPicks] = useState<Set<number>>(new Set());
   const [playing, setPlaying] = useState(false);
@@ -56,7 +58,7 @@ export default function KenoPage() {
       const res = await fetch("/api/games/keno", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ betAmount, picks: picksArr }),
+        body: JSON.stringify({ betAmount, picks: picksArr, clientSeed }),
       });
       const data: KenoResponse = await res.json();
       applyProfit(data.profit);
@@ -64,7 +66,7 @@ export default function KenoPage() {
     } finally {
       setPlaying(false);
     }
-  }, [picksArr, betAmount, balance, playing, applyProfit]);
+  }, [picksArr, betAmount, balance, playing, applyProfit, clientSeed]);
 
   const fair: ProvablyFair | null = last
     ? { serverSeed: last.serverSeed, serverSeedHash: last.serverSeedHash, clientSeed: last.clientSeed, nonce: last.nonce,

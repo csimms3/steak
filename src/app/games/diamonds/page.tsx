@@ -6,6 +6,7 @@ import { BetInput } from "@/components/ui/BetInput";
 import { GameShell, type ProvablyFair } from "@/components/ui/GameShell";
 import { ResultBanner } from "@/components/ui/ResultBanner";
 import { useBalance } from "@/context/BalanceContext";
+import { useSettings } from "@/context/SettingsContext";
 import { getDiamondsMultiplier, type GemType } from "@/lib/game-engine/diamonds";
 import { cn } from "@/lib/cn";
 
@@ -60,6 +61,7 @@ function TileButton({
 
 export default function DiamondsPage() {
   const { applyProfit, balance } = useBalance();
+  const { clientSeed } = useSettings();
   const [betAmount, setBetAmount] = useState(100_00);
   const [picks, setPicks] = useState<Set<number>>(new Set());
   const [playing, setPlaying] = useState(false);
@@ -84,7 +86,7 @@ export default function DiamondsPage() {
       const res = await fetch("/api/games/diamonds", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ betAmount, picks: Array.from(picks) }),
+        body: JSON.stringify({ betAmount, picks: Array.from(picks), clientSeed }),
       });
       const data: DiamondsResponse = await res.json();
       applyProfit(data.profit);
@@ -92,7 +94,7 @@ export default function DiamondsPage() {
     } finally {
       setPlaying(false);
     }
-  }, [picks, betAmount, balance, playing, applyProfit]);
+  }, [picks, betAmount, balance, playing, applyProfit, clientSeed]);
 
   const hitSet = last ? new Set(last.diamondPositions) : null;
 

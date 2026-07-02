@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { Flame } from "lucide-react";
 import { BetInput } from "@/components/ui/BetInput";
 import { useBalance } from "@/context/BalanceContext";
+import { useSettings } from "@/context/SettingsContext";
 import { cn } from "@/lib/cn";
 
 type Phase = "idle" | "betting" | "flying" | "crashed" | "cashedout";
@@ -26,10 +27,10 @@ function calcMultiplier(elapsedMs: number): number {
 
 export default function CrashPage() {
   const { applyProfit, balance } = useBalance();
+  const { clientSeed } = useSettings();
   const [betAmount, setBetAmount] = useState(100_00);
   const [phase, setPhase] = useState<Phase>("idle");
   const [multiplier, setMultiplier] = useState(1.0);
-  const [gameState, setGameState] = useState<string | null>(null);
   const [crashPoint, setCrashPoint] = useState<number | null>(null);
   const [result, setResult] = useState<RoundResult | null>(null);
   const [history, setHistory] = useState<number[]>([]);
@@ -57,10 +58,9 @@ export default function CrashPage() {
       const res = await fetch("/api/games/crash/round", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "start", betAmount }),
+        body: JSON.stringify({ action: "start", betAmount, clientSeed }),
       });
       const data = await res.json();
-      setGameState(data.state);
       gameStateRef.current = data.state;
       crashPointRef.current = data.crashPoint;
 
@@ -96,7 +96,7 @@ export default function CrashPage() {
     } catch {
       setPhase("idle");
     }
-  }, [betAmount, balance, phase, stopTicker, applyProfit]);
+  }, [betAmount, balance, phase, stopTicker, applyProfit, clientSeed]);
 
   const cashout = useCallback(async () => {
     if (phase !== "flying" || !gameStateRef.current) return;
@@ -128,7 +128,6 @@ export default function CrashPage() {
     stopTicker();
     setPhase("idle");
     setMultiplier(1.0);
-    setGameState(null);
     setCrashPoint(null);
   };
 

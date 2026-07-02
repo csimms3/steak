@@ -6,6 +6,7 @@ import { BetInput } from "@/components/ui/BetInput";
 import { GameShell, type ProvablyFair } from "@/components/ui/GameShell";
 import { ResultBanner } from "@/components/ui/ResultBanner";
 import { useBalance } from "@/context/BalanceContext";
+import { useSettings } from "@/context/SettingsContext";
 import { dragonTowerConfig, dragonTowerStep, type DragonTowerDifficulty } from "@/lib/game-engine";
 import { cn } from "@/lib/cn";
 
@@ -72,6 +73,7 @@ type Phase = "idle" | "playing" | "over";
 
 export default function DragonTowerPage() {
   const { applyProfit, balance } = useBalance();
+  const { clientSeed: settingsSeed } = useSettings();
   const [betAmount, setBetAmount] = useState(100_00);
   const [difficulty, setDifficulty] = useState<DragonTowerDifficulty>("medium");
   const [phase, setPhase] = useState<Phase>("idle");
@@ -101,7 +103,7 @@ export default function DragonTowerPage() {
       const res = await fetch("/api/games/dragon-tower/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ betAmount, difficulty }),
+        body: JSON.stringify({ betAmount, difficulty, clientSeed: settingsSeed }),
       });
       const data: StartResponse = await res.json();
       setGameState(data.state);
@@ -119,7 +121,7 @@ export default function DragonTowerPage() {
     } finally {
       setBusy(false);
     }
-  }, [betAmount, balance, busy, difficulty]);
+  }, [betAmount, balance, busy, difficulty, settingsSeed]);
 
   const climb = useCallback(async (col: number) => {
     if (!gameState || busy) return;

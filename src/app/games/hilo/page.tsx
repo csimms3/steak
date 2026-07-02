@@ -6,6 +6,7 @@ import { BetInput } from "@/components/ui/BetInput";
 import { GameShell, type ProvablyFair } from "@/components/ui/GameShell";
 import { ResultBanner } from "@/components/ui/ResultBanner";
 import { useBalance } from "@/context/BalanceContext";
+import { useSettings } from "@/context/SettingsContext";
 import { hiloOdds, hiloStep, rankLabel, suitSymbol, isRedSuit, type Card, type HiloGuess } from "@/lib/game-engine";
 import { cn } from "@/lib/cn";
 
@@ -58,6 +59,7 @@ interface GameOverState {
 
 export default function HiloPage() {
   const { applyProfit, balance } = useBalance();
+  const { clientSeed: settingsSeed } = useSettings();
   const [betAmount, setBetAmount] = useState(100_00);
   const [phase, setPhase] = useState<GamePhase>("idle");
   const [busy, setBusy] = useState(false);
@@ -81,7 +83,7 @@ export default function HiloPage() {
       const res = await fetch("/api/games/hilo/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ betAmount }),
+        body: JSON.stringify({ betAmount, clientSeed: settingsSeed }),
       });
       const data: StartResponse = await res.json();
       setCurrentCard(data.card);
@@ -96,7 +98,7 @@ export default function HiloPage() {
     } finally {
       setBusy(false);
     }
-  }, [betAmount, balance, busy]);
+  }, [betAmount, balance, busy, settingsSeed]);
 
   const guess = useCallback(async (g: HiloGuess) => {
     if (!gameState || !currentCard || busy) return;

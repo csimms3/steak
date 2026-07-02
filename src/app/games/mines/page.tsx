@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { Grid2x2, Bomb, Star } from "lucide-react";
 import { BetInput } from "@/components/ui/BetInput";
 import { useBalance } from "@/context/BalanceContext";
+import { useSettings } from "@/context/SettingsContext";
 import { getMinesMultiplier } from "@/lib/game-engine/mines";
 import { cn } from "@/lib/cn";
 
@@ -39,6 +40,7 @@ const INITIAL: GameState = {
 
 export default function MinesPage() {
   const { applyProfit, balance } = useBalance();
+  const { clientSeed } = useSettings();
   const [betAmount, setBetAmount] = useState(100_00);
   const [mineCount, setMineCount] = useState(3);
   const [game, setGame] = useState<GameState>(INITIAL);
@@ -51,7 +53,7 @@ export default function MinesPage() {
       const res = await fetch("/api/games/mines/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ betAmount, mineCount }),
+        body: JSON.stringify({ betAmount, mineCount, clientSeed }),
       });
       const data = await res.json();
       setGame({
@@ -64,7 +66,7 @@ export default function MinesPage() {
     } finally {
       setLoading(false);
     }
-  }, [betAmount, mineCount, balance, loading]);
+  }, [betAmount, mineCount, balance, loading, clientSeed]);
 
   const revealTile = useCallback(
     async (index: number) => {

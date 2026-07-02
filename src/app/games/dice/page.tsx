@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import { Dice5, ChevronDown, ChevronUp } from "lucide-react";
 import { BetInput } from "@/components/ui/BetInput";
 import { useBalance } from "@/context/BalanceContext";
+import { useSettings } from "@/context/SettingsContext";
 import { getDiceMultiplier } from "@/lib/game-engine/dice";
 import { cn } from "@/lib/cn";
 
@@ -168,6 +169,7 @@ function DiceTrack({
 
 export default function DicePage() {
   const { applyProfit, balance } = useBalance();
+  const { clientSeed } = useSettings();
   const [betAmount, setBetAmount] = useState(100_00);
   const [target, setTarget] = useState(50);
   const [direction, setDirection] = useState<Direction>("over");
@@ -186,7 +188,7 @@ export default function DicePage() {
       const res = await fetch("/api/games/dice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ betAmount, target, direction }),
+        body: JSON.stringify({ betAmount, target, direction, clientSeed }),
       });
       const data: DiceResult = await res.json();
       setResult(data);
@@ -195,7 +197,7 @@ export default function DicePage() {
     } finally {
       setRolling(false);
     }
-  }, [betAmount, balance, target, direction, rolling, applyProfit]);
+  }, [betAmount, balance, target, direction, rolling, applyProfit, clientSeed]);
 
   const isWin = result?.win ?? null;
 

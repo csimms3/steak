@@ -6,6 +6,7 @@ import { BetInput } from "@/components/ui/BetInput";
 import { GameShell, type ProvablyFair } from "@/components/ui/GameShell";
 import { ResultBanner } from "@/components/ui/ResultBanner";
 import { useBalance } from "@/context/BalanceContext";
+import { useSettings } from "@/context/SettingsContext";
 import { getWheelRing, type WheelRisk, type WheelSegments } from "@/lib/game-engine/wheel";
 import { cn } from "@/lib/cn";
 
@@ -30,6 +31,7 @@ function segColor(m: number): string {
 
 export default function WheelPage() {
   const { applyProfit, balance } = useBalance();
+  const { clientSeed } = useSettings();
   const [betAmount, setBetAmount] = useState(100_00);
   const [segments, setSegments] = useState<WheelSegments>(30);
   const [risk, setRisk] = useState<WheelRisk>("medium");
@@ -97,7 +99,7 @@ export default function WheelPage() {
       const res = await fetch("/api/games/wheel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ betAmount, segments, risk }),
+        body: JSON.stringify({ betAmount, segments, risk, clientSeed }),
       });
       const data: WheelResponse = await res.json();
       const segAngle = 360 / data.ring.length;
@@ -115,7 +117,7 @@ export default function WheelPage() {
     } catch {
       setSpinning(false);
     }
-  }, [betAmount, balance, segments, risk, spinning, applyProfit]);
+  }, [betAmount, balance, segments, risk, spinning, applyProfit, clientSeed]);
 
   useEffect(() => () => { if (settleTimer.current) clearTimeout(settleTimer.current); }, []);
 

@@ -7,6 +7,7 @@ import { GameShell, type ProvablyFair } from "@/components/ui/GameShell";
 import { ResultBanner } from "@/components/ui/ResultBanner";
 import { PlayingCard } from "@/components/ui/PlayingCard";
 import { useBalance } from "@/context/BalanceContext";
+import { useSettings } from "@/context/SettingsContext";
 import { videoPokerPayout, type Card, type PokerCategory } from "@/lib/game-engine";
 import { cn } from "@/lib/cn";
 
@@ -34,6 +35,7 @@ type Phase = "idle" | "holding" | "done";
 
 export default function VideoPokerPage() {
   const { applyProfit, balance } = useBalance();
+  const { clientSeed: settingsSeed } = useSettings();
   const [betAmount, setBetAmount] = useState(100_00);
   const [phase, setPhase] = useState<Phase>("idle");
   const [busy, setBusy] = useState(false);
@@ -53,7 +55,7 @@ export default function VideoPokerPage() {
       const res = await fetch("/api/games/video-poker/deal", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ betAmount }),
+        body: JSON.stringify({ betAmount, clientSeed: settingsSeed }),
       });
       const data: DealResponse = await res.json();
       setHand(data.hand);
@@ -66,7 +68,7 @@ export default function VideoPokerPage() {
     } finally {
       setBusy(false);
     }
-  }, [betAmount, balance, busy]);
+  }, [betAmount, balance, busy, settingsSeed]);
 
   const toggleHold = (i: number) => {
     if (phase !== "holding" || busy) return;

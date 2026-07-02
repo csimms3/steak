@@ -7,6 +7,7 @@ import { GameShell, type ProvablyFair } from "@/components/ui/GameShell";
 import { ResultBanner } from "@/components/ui/ResultBanner";
 import { PlayingCard } from "@/components/ui/PlayingCard";
 import { useBalance } from "@/context/BalanceContext";
+import { useSettings } from "@/context/SettingsContext";
 import { handValue, type Card, type BlackjackHand, type BlackjackAction, type HandResult } from "@/lib/game-engine";
 import { cn } from "@/lib/cn";
 
@@ -49,6 +50,7 @@ type Phase = "idle" | "playing" | "done";
 
 export default function BlackjackPage() {
   const { applyProfit, balance } = useBalance();
+  const { clientSeed: settingsSeed } = useSettings();
   const [betAmount, setBetAmount] = useState(100_00);
   const [phase, setPhase] = useState<Phase>("idle");
   const [busy, setBusy] = useState(false);
@@ -74,7 +76,7 @@ export default function BlackjackPage() {
       const res = await fetch("/api/games/blackjack/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ betAmount }),
+        body: JSON.stringify({ betAmount, clientSeed: settingsSeed }),
       });
       const data: StartResponse = await res.json();
       setServerSeedHash(data.serverSeedHash);
@@ -107,7 +109,7 @@ export default function BlackjackPage() {
     } finally {
       setBusy(false);
     }
-  }, [betAmount, balance, busy, applyProfit]);
+  }, [betAmount, balance, busy, applyProfit, settingsSeed]);
 
   const act = useCallback(async (action: BlackjackAction) => {
     if (!gameState || busy) return;

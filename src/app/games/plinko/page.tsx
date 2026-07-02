@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { CircleDot } from "lucide-react";
 import { BetInput } from "@/components/ui/BetInput";
 import { useBalance } from "@/context/BalanceContext";
+import { useSettings } from "@/context/SettingsContext";
 import { getMultiplierTable } from "@/lib/game-engine/plinko";
 import { cn } from "@/lib/cn";
 import type { PlinkoRisk } from "@/lib/game-engine/plinko";
@@ -302,6 +303,7 @@ interface PlinkoResult {
 
 export default function PlinkoPage() {
   const { applyProfit, balance } = useBalance();
+  const { clientSeed } = useSettings();
   const [betAmount, setBetAmount]   = useState(100_00);
   const [rows, setRows]             = useState<8 | 12 | 16>(8);
   const [risk, setRisk]             = useState<PlinkoRisk>("medium");
@@ -331,7 +333,7 @@ export default function PlinkoPage() {
       const res = await fetch("/api/games/plinko", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ betAmount, rows, risk, count: ballCount }),
+        body: JSON.stringify({ betAmount, rows, risk, count: ballCount, clientSeed }),
       });
       const raw = await res.json();
       const results: PlinkoResult[] = ballCount === 1 ? [raw] : raw;
@@ -373,7 +375,7 @@ export default function PlinkoPage() {
     } catch {
       setDropping(false);
     }
-  }, [betAmount, ballCount, balance, rows, risk, dropping, applyProfit]);
+  }, [betAmount, ballCount, balance, rows, risk, dropping, applyProfit, clientSeed]);
 
   const totalBet = (betAmount * ballCount) / 100;
 

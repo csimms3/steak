@@ -5,6 +5,7 @@ import { Rocket } from "lucide-react";
 import { BetInput } from "@/components/ui/BetInput";
 import { GameShell, type ProvablyFair } from "@/components/ui/GameShell";
 import { useBalance } from "@/context/BalanceContext";
+import { useSettings } from "@/context/SettingsContext";
 import { getLimboWinChance } from "@/lib/game-engine/limbo";
 import { cn } from "@/lib/cn";
 
@@ -15,6 +16,7 @@ interface LimboResponse {
 
 export default function LimboPage() {
   const { applyProfit, balance } = useBalance();
+  const { clientSeed } = useSettings();
   const [betAmount, setBetAmount] = useState(100_00);
   const [target, setTarget] = useState(2);
   const [rolling, setRolling] = useState(false);
@@ -46,7 +48,7 @@ export default function LimboPage() {
       const res = await fetch("/api/games/limbo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ betAmount, target }),
+        body: JSON.stringify({ betAmount, target, clientSeed }),
       });
       const data: LimboResponse = await res.json();
       animateTo(data.result);
@@ -56,7 +58,7 @@ export default function LimboPage() {
     } catch {
       setRolling(false);
     }
-  }, [betAmount, balance, target, rolling, applyProfit, animateTo]);
+  }, [betAmount, balance, target, rolling, applyProfit, animateTo, clientSeed]);
 
   useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
 

@@ -6,6 +6,7 @@ import { BetInput } from "@/components/ui/BetInput";
 import { GameShell, type ProvablyFair } from "@/components/ui/GameShell";
 import { ResultBanner } from "@/components/ui/ResultBanner";
 import { useBalance } from "@/context/BalanceContext";
+import { useSettings } from "@/context/SettingsContext";
 import { getFlipMultiplier, type Side } from "@/lib/game-engine/flip";
 import { cn } from "@/lib/cn";
 
@@ -30,6 +31,7 @@ function Coin({ side, revealed }: { side: Side | null; revealed: boolean }) {
 
 export default function FlipPage() {
   const { applyProfit, balance } = useBalance();
+  const { clientSeed } = useSettings();
   const [betAmount, setBetAmount] = useState(100_00);
   const [side, setSide] = useState<Side>("heads");
   const [targetStreak, setTargetStreak] = useState(1);
@@ -51,7 +53,7 @@ export default function FlipPage() {
       const res = await fetch("/api/games/flip", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ betAmount, side, targetStreak }),
+        body: JSON.stringify({ betAmount, side, targetStreak, clientSeed }),
       });
       const data: FlipResponse = await res.json();
       // Reveal flips one at a time
@@ -67,7 +69,7 @@ export default function FlipPage() {
     } catch {
       setFlipping(false);
     }
-  }, [betAmount, balance, side, targetStreak, flipping, applyProfit]);
+  }, [betAmount, balance, side, targetStreak, flipping, applyProfit, clientSeed]);
 
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 

@@ -1,8 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback, ReactNode } from "react";
-
-const STARTING_BALANCE = 1_000_00; // 1000.00 chips in minor units
+import { useSettings } from "./SettingsContext";
 
 interface BalanceContextValue {
   balance: number;      // minor units (divide by 100 to display)
@@ -14,13 +13,16 @@ interface BalanceContextValue {
 const BalanceContext = createContext<BalanceContextValue | null>(null);
 
 export function BalanceProvider({ children }: { children: ReactNode }) {
-  const [balance, setBalance] = useState(STARTING_BALANCE);
+  const { startingBalance } = useSettings();
+  const [balance, setBalance] = useState(startingBalance);
 
   const applyProfit = useCallback((profit: number) => {
     setBalance((b) => Math.max(0, b + profit));
   }, []);
 
-  const reset = useCallback(() => setBalance(STARTING_BALANCE), []);
+  // Reads the *current* configured starting balance, not the value at mount —
+  // so changing it in Settings takes effect the next time Reset is pressed.
+  const reset = useCallback(() => setBalance(startingBalance), [startingBalance]);
 
   const fmt = useCallback(
     (minor: number) => (minor / 100).toFixed(2),

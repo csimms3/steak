@@ -212,7 +212,7 @@ export default function BlackjackPage() {
               <button onClick={deal} disabled={busy || betAmount > balance}
                 className={cn("w-full py-3 rounded-xl font-black text-base transition-all",
                   "bg-[var(--accent)] text-white hover:opacity-90 active:scale-[0.99]",
-                  "shadow-[0_0_25px_rgba(232,93,4,0.2)] hover:shadow-[0_0_35px_rgba(232,93,4,0.4)]",
+                  "shadow-[0_0_25px_rgba(139,92,246,0.2)] hover:shadow-[0_0_35px_rgba(139,92,246,0.4)]",
                   "disabled:opacity-40 disabled:cursor-not-allowed")}>
                 {busy ? "Dealing…" : "Deal"}
               </button>
@@ -246,7 +246,7 @@ export default function BlackjackPage() {
             <>
               <BetInput value={betAmount} onChange={setBetAmount} disabled={busy} />
               <button onClick={reset}
-                className="w-full py-3 rounded-xl font-black text-base bg-[var(--accent)] text-white hover:opacity-90 active:scale-[0.99] shadow-[0_0_25px_rgba(232,93,4,0.2)] transition-all">
+                className="w-full py-3 rounded-xl font-black text-base bg-[var(--accent)] text-white hover:opacity-90 active:scale-[0.99] shadow-[0_0_25px_rgba(139,92,246,0.2)] transition-all">
                 Play Again
               </button>
             </>

@@ -290,7 +290,7 @@ export default function DragonTowerPage() {
                 <button key={d} onClick={() => setDifficulty(d)} disabled={phase === "playing" || busy}
                   className={cn("py-2 rounded-lg border text-sm font-bold transition-all",
                     difficulty === d
-                      ? "bg-[var(--accent)] border-[var(--accent)] text-white shadow-[0_0_14px_rgba(232,93,4,0.3)]"
+                      ? "bg-[var(--accent)] border-[var(--accent)] text-white shadow-[0_0_14px_rgba(139,92,246,0.3)]"
                       : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]",
                     (phase === "playing" || busy) && "opacity-40 cursor-not-allowed")}>
                   {DIFF_LABELS[d]}
@@ -325,7 +325,7 @@ export default function DragonTowerPage() {
             <button onClick={startGame} disabled={busy || betAmount > balance}
               className={cn("w-full py-3 rounded-xl font-black text-base transition-all",
                 "bg-[var(--accent)] text-white hover:opacity-90 active:scale-[0.99]",
-                "shadow-[0_0_25px_rgba(232,93,4,0.2)] hover:shadow-[0_0_35px_rgba(232,93,4,0.4)]",
+                "shadow-[0_0_25px_rgba(139,92,246,0.2)] hover:shadow-[0_0_35px_rgba(139,92,246,0.4)]",
                 "disabled:opacity-40 disabled:cursor-not-allowed")}>
               {busy ? "Starting…" : "Start Climb"}
             </button>
@@ -335,7 +335,7 @@ export default function DragonTowerPage() {
             <button onClick={cashout} disabled={busy || currentRow === 0}
               className={cn("w-full py-3 rounded-xl font-black text-base transition-all",
                 "bg-[var(--accent)] text-white hover:opacity-90 active:scale-[0.99]",
-                "shadow-[0_0_25px_rgba(232,93,4,0.2)] hover:shadow-[0_0_35px_rgba(232,93,4,0.4)]",
+                "shadow-[0_0_25px_rgba(139,92,246,0.2)] hover:shadow-[0_0_35px_rgba(139,92,246,0.4)]",
                 "disabled:opacity-40 disabled:cursor-not-allowed")}>
               {currentRow === 0 ? "Pick row 1 first" : `Cash Out ${multiplier.toFixed(3)}×`}
             </button>
@@ -345,7 +345,7 @@ export default function DragonTowerPage() {
             <button onClick={reset}
               className={cn("w-full py-3 rounded-xl font-black text-base transition-all",
                 "bg-[var(--accent)] text-white hover:opacity-90 active:scale-[0.99]",
-                "shadow-[0_0_25px_rgba(232,93,4,0.2)]")}>
+                "shadow-[0_0_25px_rgba(139,92,246,0.2)]")}>
               Play Again
             </button>
           )}

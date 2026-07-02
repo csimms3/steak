@@ -102,7 +102,7 @@ export default function KenoPage() {
                       : isDrawnOnly
                       ? "bg-amber-500/20 border-amber-500/40 text-amber-400"
                       : isPick
-                      ? "bg-[var(--accent)] border-[var(--accent)] text-white shadow-[0_0_8px_rgba(232,93,4,0.4)]"
+                      ? "bg-[var(--accent)] border-[var(--accent)] text-white shadow-[0_0_8px_rgba(139,92,246,0.4)]"
                       : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)] hover:border-[var(--accent)]/40"
                   )}
                 >
@@ -155,7 +155,7 @@ export default function KenoPage() {
             className={cn(
               "w-full py-3 rounded-xl font-black text-base transition-all",
               "bg-[var(--accent)] text-white hover:opacity-90 active:scale-[0.99]",
-              "shadow-[0_0_25px_rgba(232,93,4,0.2)] hover:shadow-[0_0_35px_rgba(232,93,4,0.4)]",
+              "shadow-[0_0_25px_rgba(139,92,246,0.2)] hover:shadow-[0_0_35px_rgba(139,92,246,0.4)]",
               "disabled:opacity-40 disabled:cursor-not-allowed"
             )}
           >

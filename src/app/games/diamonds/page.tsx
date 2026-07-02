@@ -50,7 +50,7 @@ function TileButton({
         revealed && gem
           ? cn(GEM_COLORS[gem], isHit && "ring-2 ring-cyan-400 ring-offset-1 ring-offset-[var(--surface)] shadow-[0_0_16px_rgba(34,211,238,0.5)]")
           : picked
-          ? "bg-[var(--accent)]/20 border-[var(--accent)] text-[var(--accent)] shadow-[0_0_12px_rgba(232,93,4,0.3)]"
+          ? "bg-[var(--accent)]/20 border-[var(--accent)] text-[var(--accent)] shadow-[0_0_12px_rgba(139,92,246,0.3)]"
           : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted)] hover:border-[var(--accent)]/40 hover:text-[var(--text)]"
       )}
     >
@@ -162,7 +162,7 @@ export default function DiamondsPage() {
             className={cn(
               "w-full py-3 rounded-xl font-black text-base transition-all",
               "bg-[var(--accent)] text-white hover:opacity-90 active:scale-[0.99]",
-              "shadow-[0_0_25px_rgba(232,93,4,0.2)] hover:shadow-[0_0_35px_rgba(232,93,4,0.4)]",
+              "shadow-[0_0_25px_rgba(139,92,246,0.2)] hover:shadow-[0_0_35px_rgba(139,92,246,0.4)]",
               "disabled:opacity-40 disabled:cursor-not-allowed"
             )}
           >

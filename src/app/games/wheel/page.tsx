@@ -22,11 +22,11 @@ const SEGMENTS_OPTS: WheelSegments[] = [10, 20, 30, 40, 50];
 const RISKS: WheelRisk[] = ["low", "medium", "high"];
 
 function segColor(m: number): string {
-  if (m === 0) return "#3a2420";
-  if (m < 1) return "#5a4a32";
-  if (m < 2) return "#8a7a5a";
-  if (m < 5) return "#f48c06";
-  return "#e85d04";
+  if (m === 0) return "#241e33";
+  if (m < 1) return "#4a3f68";
+  if (m < 2) return "#7c6bb0";
+  if (m < 5) return "#8b5cf6";
+  return "#22d3ee";
 }
 
 export default function WheelPage() {
@@ -74,7 +74,7 @@ export default function WheelPage() {
         ctx.rotate(start + seg / 2);
         ctx.textAlign = "right";
         ctx.textBaseline = "middle";
-        ctx.fillStyle = m >= 5 ? "#fff" : "#1a1410";
+        ctx.fillStyle = m >= 5 ? "#0e3a44" : "#fff";
         ctx.font = `700 ${ring.length <= 20 ? 11 : 9}px system-ui`;
         ctx.fillText(`${m}×`, R - 8, 0);
         ctx.restore();
@@ -83,9 +83,9 @@ export default function WheelPage() {
     // hub
     ctx.beginPath();
     ctx.arc(CENTER, CENTER, 28, 0, Math.PI * 2);
-    ctx.fillStyle = "#1c1a14";
+    ctx.fillStyle = "#16131f";
     ctx.fill();
-    ctx.strokeStyle = "#2d2820";
+    ctx.strokeStyle = "#2b2542";
     ctx.lineWidth = 2;
     ctx.stroke();
   }, [segments, risk]);
@@ -152,7 +152,7 @@ export default function WheelPage() {
               {RISKS.map((r) => (
                 <button key={r} onClick={() => setRisk(r)} disabled={spinning}
                   className={cn("flex-1 py-2 rounded-lg border text-xs font-bold capitalize transition-all",
-                    risk === r ? "bg-[var(--accent)] border-[var(--accent)] text-white shadow-[0_0_14px_rgba(232,93,4,0.3)]"
+                    risk === r ? "bg-[var(--accent)] border-[var(--accent)] text-white shadow-[0_0_14px_rgba(139,92,246,0.3)]"
                       : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]")}>
                   {r}
                 </button>
@@ -176,7 +176,7 @@ export default function WheelPage() {
           <button onClick={spin} disabled={spinning || betAmount > balance}
             className={cn("w-full py-3 rounded-xl font-black text-base transition-all",
               "bg-[var(--accent)] text-white hover:opacity-90 active:scale-[0.99]",
-              "shadow-[0_0_25px_rgba(232,93,4,0.2)] hover:shadow-[0_0_35px_rgba(232,93,4,0.4)]",
+              "shadow-[0_0_25px_rgba(139,92,246,0.2)] hover:shadow-[0_0_35px_rgba(139,92,246,0.4)]",
               "disabled:opacity-40 disabled:cursor-not-allowed")}>
             {spinning ? "Spinning…" : "Spin"}
           </button>

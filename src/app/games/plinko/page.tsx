@@ -110,26 +110,26 @@ function buildWaypoints(path: Array<"L" | "R">, rows: number): { waypoints: Pt[]
 // ─── Multiplier colour helpers ────────────────────────────────────────────────
 
 function mFill(m: number): string {
-  if (m >= 50)  return "rgba(232,93,4,0.95)";
-  if (m >= 10)  return "rgba(232,93,4,0.55)";
-  if (m >= 3)   return "rgba(244,140,6,0.35)";
+  if (m >= 50)  return "rgba(34,211,238,0.85)";
+  if (m >= 10)  return "rgba(139,92,246,0.55)";
+  if (m >= 3)   return "rgba(167,139,250,0.35)";
   if (m >= 1.5) return "rgba(255,255,255,0.07)";
   if (m >= 1)   return "rgba(255,255,255,0.04)";
-  return               "rgba(239,68,68,0.25)";
+  return               "rgba(251,113,133,0.25)";
 }
 function mText(m: number): string {
-  if (m >= 10)  return "#e85d04";
-  if (m >= 3)   return "#f48c06";
-  if (m >= 1.5) return "#c9d3dd";
-  if (m >= 1)   return "#5a4a32";
-  return               "#ef4444";
+  if (m >= 10)  return "#a78bfa";
+  if (m >= 3)   return "#c4b5fd";
+  if (m >= 1.5) return "#cfcae4";
+  if (m >= 1)   return "#6b6390";
+  return               "#fb7185";
 }
 function mStroke(m: number): string {
-  if (m >= 10)  return "rgba(232,93,4,0.7)";
-  if (m >= 3)   return "rgba(244,140,6,0.5)";
+  if (m >= 10)  return "rgba(139,92,246,0.7)";
+  if (m >= 3)   return "rgba(167,139,250,0.5)";
   if (m >= 1.5) return "rgba(255,255,255,0.14)";
   if (m >= 1)   return "rgba(255,255,255,0.07)";
-  return               "rgba(239,68,68,0.45)";
+  return               "rgba(251,113,133,0.45)";
 }
 
 // ─── Canvas Plinko Board ──────────────────────────────────────────────────────
@@ -256,8 +256,8 @@ function PlinkoBoard({
         // Draw
         ctx.beginPath();
         ctx.arc(ball.x, ball.y, BALL_R, 0, Math.PI * 2);
-        ctx.fillStyle = ball.landed ? "rgba(244,140,6,0.6)" : "#e85d04";
-        ctx.shadowColor = ball.landed ? "transparent" : "rgba(232,93,4,0.35)";
+        ctx.fillStyle = ball.landed ? "rgba(167,139,250,0.6)" : "#a78bfa";
+        ctx.shadowColor = ball.landed ? "transparent" : "rgba(139,92,246,0.4)";
         ctx.shadowBlur  = ball.landed ? 0 : 5;
         ctx.fill();
         ctx.shadowBlur = 0;
@@ -432,7 +432,7 @@ export default function PlinkoPage() {
                     className={cn(
                       "flex-1 py-2 rounded-lg border text-sm font-bold transition-all",
                       rows === r
-                        ? "bg-[var(--accent)] border-[var(--accent)] text-white shadow-[0_0_14px_rgba(232,93,4,0.3)]"
+                        ? "bg-[var(--accent)] border-[var(--accent)] text-white shadow-[0_0_14px_rgba(139,92,246,0.3)]"
                         : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]"
                     )}
                   >
@@ -453,7 +453,7 @@ export default function PlinkoPage() {
                     className={cn(
                       "flex-1 py-2 rounded-lg border text-xs font-bold capitalize transition-all",
                       risk === r
-                        ? "bg-[var(--accent)] border-[var(--accent)] text-white shadow-[0_0_14px_rgba(232,93,4,0.3)]"
+                        ? "bg-[var(--accent)] border-[var(--accent)] text-white shadow-[0_0_14px_rgba(139,92,246,0.3)]"
                         : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]"
                     )}
                   >
@@ -474,7 +474,7 @@ export default function PlinkoPage() {
                     className={cn(
                       "py-1.5 rounded-lg border text-xs font-bold transition-all",
                       ballCount === n
-                        ? "bg-[var(--accent)] border-[var(--accent)] text-white shadow-[0_0_14px_rgba(232,93,4,0.3)]"
+                        ? "bg-[var(--accent)] border-[var(--accent)] text-white shadow-[0_0_14px_rgba(139,92,246,0.3)]"
                         : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]"
                     )}
                   >
@@ -498,7 +498,7 @@ export default function PlinkoPage() {
               className={cn(
                 "w-full py-3 rounded-xl font-black text-base transition-all",
                 "bg-[var(--accent)] text-white hover:opacity-90 active:scale-[0.99]",
-                "shadow-[0_0_25px_rgba(232,93,4,0.2)] hover:shadow-[0_0_35px_rgba(232,93,4,0.4)]",
+                "shadow-[0_0_25px_rgba(139,92,246,0.2)] hover:shadow-[0_0_35px_rgba(139,92,246,0.4)]",
                 "disabled:opacity-40 disabled:cursor-not-allowed"
               )}
             >

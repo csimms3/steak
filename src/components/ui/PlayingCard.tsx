@@ -39,7 +39,7 @@ export function PlayingCard({ card, faceDown, size = "md", className }: PlayingC
       className={cn(
         SIZES[size],
         "relative flex flex-col justify-between p-1.5 font-bold",
-        "bg-[#f5f0e6] border border-black/10 shadow-md select-none",
+        "bg-[#f6f5fb] border border-black/10 shadow-md select-none",
         red ? "text-red-600" : "text-neutral-900",
         className
       )}

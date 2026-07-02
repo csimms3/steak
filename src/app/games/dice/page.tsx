@@ -324,7 +324,7 @@ export default function DicePage() {
           className={cn(
             "w-full py-3.5 rounded-xl font-black text-base tracking-wide transition-all disabled:opacity-40 disabled:cursor-not-allowed",
             "bg-[var(--accent)] text-white hover:opacity-90 active:scale-[0.99]",
-            "shadow-[0_0_30px_rgba(232,93,4,0.25)] hover:shadow-[0_0_40px_rgba(232,93,4,0.4)]"
+            "shadow-[0_0_30px_rgba(139,92,246,0.25)] hover:shadow-[0_0_40px_rgba(139,92,246,0.4)]"
           )}
         >
           {rolling ? "Rolling…" : "Roll Dice"}

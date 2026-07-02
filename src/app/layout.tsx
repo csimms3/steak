@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
+import { Bricolage_Grotesque, Manrope } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { BalanceProvider } from "@/context/BalanceContext";
 import { SettingsProvider } from "@/context/SettingsContext";
+
+const manrope = Manrope({ subsets: ["latin"], variable: "--font-manrope" });
+const bricolage = Bricolage_Grotesque({ subsets: ["latin"], variable: "--font-bricolage" });
 
 export const metadata: Metadata = {
   title: "Steak — Play Money Casino",
@@ -12,8 +16,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="h-full">
-      <body className="flex h-full bg-[var(--bg)]">
+    <html lang="en" className={`h-full ${manrope.variable} ${bricolage.variable}`}>
+      <body className="flex h-full bg-[var(--bg)] font-sans">
         <SettingsProvider>
           <BalanceProvider>
             <Sidebar />

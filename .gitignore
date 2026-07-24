@@ -4,6 +4,10 @@ node_modules
 /src/generated/prisma
 prisma/config.ts
 
+# TypeScript incremental build cache
+tsconfig.tsbuildinfo
+
 # Local agent / editor config — not for version control
 .claude/
+.cursor/
 

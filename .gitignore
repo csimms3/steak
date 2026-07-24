@@ -9,4 +9,5 @@ tsconfig.tsbuildinfo
 
 # Local agent / editor config — not for version control
 .claude/
+.cursor/
 

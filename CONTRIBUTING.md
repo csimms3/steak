@@ -4,7 +4,7 @@
 
 ```bash
 # Clone
-git clone https://github.com/[TODO: username]/steak.git
+git clone https://github.com/csimms3/steak.git
 cd steak
 
 # Install dependencies

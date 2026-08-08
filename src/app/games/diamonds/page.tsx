@@ -14,6 +14,7 @@ interface DiamondsResponse {
   picks: number[]; tiles: GemType[]; diamondPositions: number[];
   hits: number; multiplier: number; profit: number;
   serverSeed: string; serverSeedHash: string; clientSeed: string; nonce: number;
+  balance?: number;
 }
 
 const GEM_COLORS: Record<GemType, string> = {
@@ -60,7 +61,7 @@ function TileButton({
 }
 
 export default function DiamondsPage() {
-  const { applyProfit, balance } = useBalance();
+  const { applyProfit, syncBalance, balance } = useBalance();
   const { clientSeed } = useSettings();
   const [betAmount, setBetAmount] = useState(100_00);
   const [picks, setPicks] = useState<Set<number>>(new Set());
@@ -89,12 +90,12 @@ export default function DiamondsPage() {
         body: JSON.stringify({ betAmount, picks: Array.from(picks), clientSeed }),
       });
       const data: DiamondsResponse = await res.json();
-      applyProfit(data.profit);
+      if (data.balance !== undefined) syncBalance(data.balance); else applyProfit(data.profit);
       setLast(data);
     } finally {
       setPlaying(false);
     }
-  }, [picks, betAmount, balance, playing, applyProfit, clientSeed]);
+  }, [picks, betAmount, balance, playing, applyProfit, syncBalance, clientSeed]);
 
   const hitSet = last ? new Set(last.diamondPositions) : null;
 

@@ -12,10 +12,11 @@ import { cn } from "@/lib/cn";
 interface LimboResponse {
   result: number; win: boolean; multiplier: number; profit: number;
   serverSeed: string; serverSeedHash: string; clientSeed: string; nonce: number;
+  balance?: number;
 }
 
 export default function LimboPage() {
-  const { applyProfit, balance } = useBalance();
+  const { applyProfit, syncBalance, balance } = useBalance();
   const { clientSeed } = useSettings();
   const [betAmount, setBetAmount] = useState(100_00);
   const [target, setTarget] = useState(2);
@@ -52,13 +53,13 @@ export default function LimboPage() {
       });
       const data: LimboResponse = await res.json();
       animateTo(data.result);
-      applyProfit(data.profit);
+      if (data.balance !== undefined) syncBalance(data.balance); else applyProfit(data.profit);
       setHistory((h) => [{ result: data.result, win: data.win }, ...h].slice(0, 20));
       setTimeout(() => { setLast(data); setRolling(false); }, 650);
     } catch {
       setRolling(false);
     }
-  }, [betAmount, balance, target, rolling, applyProfit, animateTo, clientSeed]);
+  }, [betAmount, balance, target, rolling, applyProfit, syncBalance, animateTo, clientSeed]);
 
   useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
 

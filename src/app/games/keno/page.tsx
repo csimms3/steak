@@ -14,6 +14,7 @@ interface KenoResponse {
   picks: number[]; drawn: number[]; hits: number;
   multiplier: number; profit: number;
   serverSeed: string; serverSeedHash: string; clientSeed: string; nonce: number;
+  balance?: number;
 }
 
 // Payout table preview for current pick count — shows only non-zero entries
@@ -29,7 +30,7 @@ function PayoutRow({ picks, hits }: { picks: number; hits: number }) {
 }
 
 export default function KenoPage() {
-  const { applyProfit, balance } = useBalance();
+  const { applyProfit, syncBalance, balance } = useBalance();
   const { clientSeed } = useSettings();
   const [betAmount, setBetAmount] = useState(100_00);
   const [picks, setPicks] = useState<Set<number>>(new Set());
@@ -61,12 +62,12 @@ export default function KenoPage() {
         body: JSON.stringify({ betAmount, picks: picksArr, clientSeed }),
       });
       const data: KenoResponse = await res.json();
-      applyProfit(data.profit);
+      if (data.balance !== undefined) syncBalance(data.balance); else applyProfit(data.profit);
       setLast(data);
     } finally {
       setPlaying(false);
     }
-  }, [picksArr, betAmount, balance, playing, applyProfit, clientSeed]);
+  }, [picksArr, betAmount, balance, playing, applyProfit, syncBalance, clientSeed]);
 
   const fair: ProvablyFair | null = last
     ? { serverSeed: last.serverSeed, serverSeedHash: last.serverSeedHash, clientSeed: last.clientSeed, nonce: last.nonce,

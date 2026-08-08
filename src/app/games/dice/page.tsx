@@ -19,6 +19,7 @@ interface DiceResult {
   serverSeedHash: string;
   clientSeed: string;
   nonce: number;
+  balance?: number;
 }
 
 // ─── Custom Dice Track ───────────────────────────────────────────────────────
@@ -168,7 +169,7 @@ function DiceTrack({
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function DicePage() {
-  const { applyProfit, balance } = useBalance();
+  const { applyProfit, syncBalance, balance } = useBalance();
   const { clientSeed } = useSettings();
   const [betAmount, setBetAmount] = useState(100_00);
   const [target, setTarget] = useState(50);
@@ -193,11 +194,11 @@ export default function DicePage() {
       const data: DiceResult = await res.json();
       setResult(data);
       setHistory((h) => [data, ...h].slice(0, 20));
-      applyProfit(data.profit);
+      if (data.balance !== undefined) syncBalance(data.balance); else applyProfit(data.profit);
     } finally {
       setRolling(false);
     }
-  }, [betAmount, balance, target, direction, rolling, applyProfit, clientSeed]);
+  }, [betAmount, balance, target, direction, rolling, applyProfit, syncBalance, clientSeed]);
 
   const isWin = result?.win ?? null;
 

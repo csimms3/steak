@@ -6,6 +6,8 @@ import {
   hashServerSeed,
   resolveKeno,
 } from "@/lib/game-engine";
+import { auth } from "@/auth";
+import { settleBet, InsufficientBalanceError } from "@/lib/game-balance";
 
 const schema = z.object({
   betAmount: z.number().int().min(100).max(10_000_00),
@@ -28,6 +30,33 @@ export async function POST(req: NextRequest) {
 
   const result = resolveKeno(serverSeed, clientSeed, nonce, BigInt(betAmount), picks);
 
+  const session = await auth();
+  let balance: number | undefined;
+  if (session?.user?.id) {
+    try {
+      balance = Number(
+        await settleBet({
+          userId: session.user.id,
+          game: "keno",
+          betAmount: BigInt(betAmount),
+          profit: result.profit,
+          multiplier: result.multiplier,
+          serverSeed,
+          serverSeedHash,
+          clientSeed,
+          nonce,
+          outcome: { picks: result.picks, drawn: result.drawn, hits: result.hits },
+          reserved: false,
+        })
+      );
+    } catch (err) {
+      if (err instanceof InsufficientBalanceError) {
+        return NextResponse.json({ error: "Insufficient balance" }, { status: 400 });
+      }
+      throw err;
+    }
+  }
+
   return NextResponse.json({
     picks: result.picks,
     drawn: result.drawn,
@@ -38,5 +67,6 @@ export async function POST(req: NextRequest) {
     serverSeedHash,
     clientSeed,
     nonce,
+    ...(balance !== undefined ? { balance } : {}),
   });
 }

@@ -12,11 +12,11 @@ import { videoPokerPayout, type Card, type PokerCategory } from "@/lib/game-engi
 import { cn } from "@/lib/cn";
 
 interface DealResponse {
-  hand: Card[]; state: string; serverSeedHash: string; clientSeed: string;
+  hand: Card[]; state?: string; token?: string; serverSeedHash: string; clientSeed: string; balance?: number;
 }
 interface DrawResponse {
   finalHand: Card[]; category: PokerCategory; label: string;
-  multiplier: number; profit: number; serverSeed: string;
+  multiplier: number; profit: number; serverSeed: string; balance?: number;
 }
 
 const PAYTABLE: { category: PokerCategory; label: string }[] = [
@@ -34,7 +34,7 @@ const PAYTABLE: { category: PokerCategory; label: string }[] = [
 type Phase = "idle" | "holding" | "done";
 
 export default function VideoPokerPage() {
-  const { applyProfit, balance } = useBalance();
+  const { applyProfit, syncBalance, balance } = useBalance();
   const { clientSeed: settingsSeed } = useSettings();
   const [betAmount, setBetAmount] = useState(100_00);
   const [phase, setPhase] = useState<Phase>("idle");
@@ -43,6 +43,7 @@ export default function VideoPokerPage() {
   const [hand, setHand] = useState<Card[]>([]);
   const [holds, setHolds] = useState<boolean[]>([false, false, false, false, false]);
   const [gameState, setGameState] = useState<string | null>(null);
+  const [gameToken, setGameToken] = useState<string | null>(null);
   const [result, setResult] = useState<DrawResponse | null>(null);
 
   const [serverSeedHash, setServerSeedHash] = useState("");
@@ -58,9 +59,11 @@ export default function VideoPokerPage() {
         body: JSON.stringify({ betAmount, clientSeed: settingsSeed }),
       });
       const data: DealResponse = await res.json();
+      if (data.balance !== undefined) syncBalance(data.balance);
       setHand(data.hand);
       setHolds([false, false, false, false, false]);
-      setGameState(data.state);
+      setGameState(data.state ?? null);
+      setGameToken(data.token ?? null);
       setServerSeedHash(data.serverSeedHash);
       setClientSeed(data.clientSeed);
       setResult(null);
@@ -68,7 +71,7 @@ export default function VideoPokerPage() {
     } finally {
       setBusy(false);
     }
-  }, [betAmount, balance, busy, settingsSeed]);
+  }, [betAmount, balance, busy, settingsSeed, syncBalance]);
 
   const toggleHold = (i: number) => {
     if (phase !== "holding" || busy) return;
@@ -76,24 +79,25 @@ export default function VideoPokerPage() {
   };
 
   const draw = useCallback(async () => {
-    if (!gameState || busy) return;
+    if ((!gameState && !gameToken) || busy) return;
     setBusy(true);
     try {
       const res = await fetch("/api/games/video-poker/draw", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ state: gameState, holds }),
+        body: JSON.stringify({ ...(gameToken ? { token: gameToken } : { state: gameState }), holds }),
       });
       const data: DrawResponse = await res.json();
-      applyProfit(data.profit);
+      if (data.balance !== undefined) syncBalance(data.balance); else applyProfit(data.profit);
       setHand(data.finalHand);
       setResult(data);
       setGameState(null);
+      setGameToken(null);
       setPhase("done");
     } finally {
       setBusy(false);
     }
-  }, [gameState, holds, busy, applyProfit]);
+  }, [gameState, gameToken, holds, busy, applyProfit, syncBalance]);
 
   const reset = () => { setPhase("idle"); setHand([]); setResult(null); setHolds([false, false, false, false, false]); };
 

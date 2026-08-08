@@ -13,14 +13,14 @@ import { cn } from "@/lib/cn";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface StartResponse {
-  card: Card; state: string; serverSeedHash: string; clientSeed: string;
+  card: Card; state?: string; token?: string; serverSeedHash: string; clientSeed: string; balance?: number;
 }
 interface GuessResponse {
   correct: boolean; prevCard: Card; nextCard: Card;
   multiplier: number; currentProfit: number; profit: number;
-  state: string | null; serverSeed: string | null;
+  state: string | null; token?: string; serverSeed: string | null; balance?: number;
 }
-interface CashoutResponse { multiplier: number; profit: number; serverSeed: string; }
+interface CashoutResponse { multiplier: number; profit: number; serverSeed: string; balance?: number; }
 
 // ─── Card component ───────────────────────────────────────────────────────────
 
@@ -58,7 +58,7 @@ interface GameOverState {
 }
 
 export default function HiloPage() {
-  const { applyProfit, balance } = useBalance();
+  const { applyProfit, syncBalance, balance } = useBalance();
   const { clientSeed: settingsSeed } = useSettings();
   const [betAmount, setBetAmount] = useState(100_00);
   const [phase, setPhase] = useState<GamePhase>("idle");
@@ -68,6 +68,7 @@ export default function HiloPage() {
   const [currentCard, setCurrentCard] = useState<Card | null>(null);
   const [history, setHistory] = useState<Card[]>([]);
   const [gameState, setGameState] = useState<string | null>(null);
+  const [gameToken, setGameToken] = useState<string | null>(null);
   const [multiplier, setMultiplier] = useState(1);
   const [currentProfit, setCurrentProfit] = useState(0);
   const [serverSeedHash, setServerSeedHash] = useState("");
@@ -86,9 +87,11 @@ export default function HiloPage() {
         body: JSON.stringify({ betAmount, clientSeed: settingsSeed }),
       });
       const data: StartResponse = await res.json();
+      if (data.balance !== undefined) syncBalance(data.balance);
       setCurrentCard(data.card);
       setHistory([]);
-      setGameState(data.state);
+      setGameState(data.state ?? null);
+      setGameToken(data.token ?? null);
       setMultiplier(1);
       setCurrentProfit(0);
       setServerSeedHash(data.serverSeedHash);
@@ -98,54 +101,57 @@ export default function HiloPage() {
     } finally {
       setBusy(false);
     }
-  }, [betAmount, balance, busy, settingsSeed]);
+  }, [betAmount, balance, busy, settingsSeed, syncBalance]);
 
   const guess = useCallback(async (g: HiloGuess) => {
-    if (!gameState || !currentCard || busy) return;
+    if ((!gameState && !gameToken) || !currentCard || busy) return;
     setBusy(true);
     try {
       const res = await fetch("/api/games/hilo/guess", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ state: gameState, guess: g }),
+        body: JSON.stringify({ ...(gameToken ? { token: gameToken } : { state: gameState }), guess: g }),
       });
       const data: GuessResponse = await res.json();
       setHistory((h) => [...h, data.prevCard]);
       setCurrentCard(data.nextCard);
 
       if (!data.correct) {
-        applyProfit(data.profit);
+        if (data.balance !== undefined) syncBalance(data.balance); else applyProfit(data.profit);
         setOver({ win: false, profit: data.profit, serverSeed: data.serverSeed!, clientSeed, serverSeedHash, multiplier });
         setPhase("over");
         setGameState(null);
+        setGameToken(null);
       } else {
         setMultiplier(data.multiplier);
         setCurrentProfit(data.currentProfit);
         setGameState(data.state);
+        if (data.token) setGameToken(data.token);
       }
     } finally {
       setBusy(false);
     }
-  }, [gameState, currentCard, busy, applyProfit, clientSeed, serverSeedHash, multiplier]);
+  }, [gameState, gameToken, currentCard, busy, applyProfit, syncBalance, clientSeed, serverSeedHash, multiplier]);
 
   const cashout = useCallback(async () => {
-    if (!gameState || busy || multiplier <= 1) return;
+    if ((!gameState && !gameToken) || busy || multiplier <= 1) return;
     setBusy(true);
     try {
       const res = await fetch("/api/games/hilo/cashout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ state: gameState }),
+        body: JSON.stringify(gameToken ? { token: gameToken } : { state: gameState }),
       });
       const data: CashoutResponse = await res.json();
-      applyProfit(data.profit);
+      if (data.balance !== undefined) syncBalance(data.balance); else applyProfit(data.profit);
       setOver({ win: true, profit: data.profit, serverSeed: data.serverSeed, clientSeed, serverSeedHash, multiplier: data.multiplier });
       setPhase("over");
       setGameState(null);
+      setGameToken(null);
     } finally {
       setBusy(false);
     }
-  }, [gameState, busy, multiplier, applyProfit, clientSeed, serverSeedHash]);
+  }, [gameState, gameToken, busy, multiplier, applyProfit, syncBalance, clientSeed, serverSeedHash]);
 
   const reset = () => { setPhase("idle"); setCurrentCard(null); setHistory([]); setOver(null); };
 

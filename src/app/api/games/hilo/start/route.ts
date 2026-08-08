@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { hiloStart } from "@/lib/game-engine";
+import { hiloStart, type HiloState } from "@/lib/game-engine";
+import { auth } from "@/auth";
+import { reserveBet, InsufficientBalanceError } from "@/lib/game-balance";
+import { createRound } from "@/lib/game-engine/round-store";
 
 const schema = z.object({
   betAmount: z.number().int().min(100).max(10_000_00),
@@ -16,6 +19,27 @@ export async function POST(req: NextRequest) {
 
   const { betAmount, clientSeed } = parsed.data;
   const result = hiloStart(betAmount, clientSeed);
+
+  const session = await auth();
+  if (session?.user?.id) {
+    let balance: number;
+    try {
+      balance = Number(await reserveBet(session.user.id, BigInt(betAmount)));
+    } catch (err) {
+      if (err instanceof InsufficientBalanceError) {
+        return NextResponse.json({ error: "Insufficient balance" }, { status: 400 });
+      }
+      throw err;
+    }
+    const payload: HiloState = JSON.parse(Buffer.from(result.state, "base64").toString());
+    const token = await createRound(session.user.id, "hilo", BigInt(betAmount), {
+      ...payload,
+      serverSeedHash: result.serverSeedHash,
+    });
+    return NextResponse.json({
+      card: result.card, token, serverSeedHash: result.serverSeedHash, clientSeed: result.clientSeed, balance,
+    });
+  }
 
   return NextResponse.json(result);
 }

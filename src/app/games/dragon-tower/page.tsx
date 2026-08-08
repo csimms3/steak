@@ -13,16 +13,16 @@ import { cn } from "@/lib/cn";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface StartResponse {
-  state: string; serverSeedHash: string; clientSeed: string;
-  rows: number; cols: number; step: number;
+  state?: string; token?: string; serverSeedHash: string; clientSeed: string;
+  rows: number; cols: number; step: number; balance?: number;
 }
 interface ClimbResponse {
   safe: boolean; dragonCols: number[]; pickedCol: number;
   multiplier: number; currentProfit: number; profit: number;
-  state: string | null; serverSeed: string | null; cleared: boolean;
+  state: string | null; token?: string; serverSeed: string | null; cleared: boolean; balance?: number;
 }
 interface CashoutResponse {
-  multiplier: number; profit: number; serverSeed: string; allDragonPositions: number[][];
+  multiplier: number; profit: number; serverSeed: string; allDragonPositions: number[][]; balance?: number;
 }
 
 // Row revealed state: what the player picked and where the dragons were
@@ -72,7 +72,7 @@ function Tile({
 type Phase = "idle" | "playing" | "over";
 
 export default function DragonTowerPage() {
-  const { applyProfit, balance } = useBalance();
+  const { applyProfit, syncBalance, balance } = useBalance();
   const { clientSeed: settingsSeed } = useSettings();
   const [betAmount, setBetAmount] = useState(100_00);
   const [difficulty, setDifficulty] = useState<DragonTowerDifficulty>("medium");
@@ -81,6 +81,7 @@ export default function DragonTowerPage() {
 
   // Playing state
   const [gameState, setGameState] = useState<string | null>(null);
+  const [gameToken, setGameToken] = useState<string | null>(null);
   const [currentRow, setCurrentRow] = useState(0);
   const [multiplier, setMultiplier] = useState(1);
   const [currentProfit, setCurrentProfit] = useState(0);
@@ -106,7 +107,9 @@ export default function DragonTowerPage() {
         body: JSON.stringify({ betAmount, difficulty, clientSeed: settingsSeed }),
       });
       const data: StartResponse = await res.json();
-      setGameState(data.state);
+      if (data.balance !== undefined) syncBalance(data.balance);
+      setGameState(data.state ?? null);
+      setGameToken(data.token ?? null);
       setCurrentRow(0);
       setMultiplier(1);
       setCurrentProfit(0);
@@ -121,16 +124,16 @@ export default function DragonTowerPage() {
     } finally {
       setBusy(false);
     }
-  }, [betAmount, balance, busy, difficulty, settingsSeed]);
+  }, [betAmount, balance, busy, difficulty, settingsSeed, syncBalance]);
 
   const climb = useCallback(async (col: number) => {
-    if (!gameState || busy) return;
+    if ((!gameState && !gameToken) || busy) return;
     setBusy(true);
     try {
       const res = await fetch("/api/games/dragon-tower/climb", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ state: gameState, col }),
+        body: JSON.stringify({ ...(gameToken ? { token: gameToken } : { state: gameState }), col }),
       });
       const data: ClimbResponse = await res.json();
 
@@ -140,49 +143,46 @@ export default function DragonTowerPage() {
         return next;
       });
 
-      if (!data.safe) {
-        applyProfit(data.profit);
+      if (!data.safe || data.cleared) {
+        if (data.balance !== undefined) syncBalance(data.balance); else applyProfit(data.profit);
         setEndProfit(data.profit);
         setServerSeed(data.serverSeed);
         setGameState(null);
-        setPhase("over");
-      } else if (data.cleared) {
-        applyProfit(data.profit);
-        setEndProfit(data.profit);
-        setServerSeed(data.serverSeed);
-        setGameState(null);
+        setGameToken(null);
         setPhase("over");
       } else {
         setMultiplier(data.multiplier);
         setCurrentProfit(data.currentProfit);
         setCurrentRow((r) => r + 1);
         setGameState(data.state);
+        if (data.token) setGameToken(data.token);
       }
     } finally {
       setBusy(false);
     }
-  }, [gameState, busy, currentRow, cols, applyProfit]);
+  }, [gameState, gameToken, busy, currentRow, cols, applyProfit, syncBalance]);
 
   const cashout = useCallback(async () => {
-    if (!gameState || busy || currentRow === 0) return;
+    if ((!gameState && !gameToken) || busy || currentRow === 0) return;
     setBusy(true);
     try {
       const res = await fetch("/api/games/dragon-tower/cashout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ state: gameState }),
+        body: JSON.stringify(gameToken ? { token: gameToken } : { state: gameState }),
       });
       const data: CashoutResponse = await res.json();
-      applyProfit(data.profit);
+      if (data.balance !== undefined) syncBalance(data.balance); else applyProfit(data.profit);
       setEndProfit(data.profit);
       setServerSeed(data.serverSeed);
       setAllDragonPositions(data.allDragonPositions);
       setGameState(null);
+      setGameToken(null);
       setPhase("over");
     } finally {
       setBusy(false);
     }
-  }, [gameState, busy, currentRow, applyProfit]);
+  }, [gameState, gameToken, busy, currentRow, applyProfit, syncBalance]);
 
   const reset = () => {
     setPhase("idle");

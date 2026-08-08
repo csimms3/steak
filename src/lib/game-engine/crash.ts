@@ -25,6 +25,25 @@ export function getCrashPoint(
   return Math.floor(raw * 100) / 100; // floor to 2 decimal places
 }
 
+/**
+ * Multiplier reachable after `elapsedMs` of real time — mirrors the client's
+ * own animation formula (src/app/games/crash/page.tsx's calcMultiplier)
+ * exactly, so the server can validate a claimed cashout against real elapsed
+ * time instead of trusting it outright.
+ *
+ * This closes the "instant claim" exploit (submitting an unreachable
+ * cashedOutAt the moment the round starts) for authenticated play, where
+ * elapsed time is measured from the round's DB row creation. It does not
+ * close the deeper structural gap that the client needs `crashPoint` up
+ * front to animate at all (no server-push round loop exists) — a scripted
+ * client can still wait the correct real time and cash out at exactly the
+ * crash point on every round. Fully closing that requires the real-time
+ * multiplayer Crash round this project has deferred; see docs/roadmap.md.
+ */
+export function crashMultiplierAtElapsed(elapsedMs: number): number {
+  return Math.floor(Math.pow(Math.E, 0.00006 * elapsedMs) * 100) / 100;
+}
+
 export interface CrashBetResult {
   cashedOutAt: number | null; // null = busted
   profit: bigint;

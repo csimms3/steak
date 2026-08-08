@@ -6,6 +6,9 @@ import {
   hashServerSeed,
   generateMinePositions,
 } from "@/lib/game-engine";
+import { auth } from "@/auth";
+import { reserveBet, InsufficientBalanceError } from "@/lib/game-balance";
+import { createRound } from "@/lib/game-engine/round-store";
 
 const schema = z.object({
   betAmount: z.number().int().min(100).max(10_000_00),
@@ -25,21 +28,30 @@ export async function POST(req: NextRequest) {
   const clientSeed = suppliedClient ?? generateClientSeed();
   const serverSeedHash = hashServerSeed(serverSeed);
 
-  // Derive mine positions — sent to client only after game ends
+  // Derive mine positions — kept secret until the game ends.
   const minePositions = generateMinePositions(serverSeed, clientSeed, 0, mineCount);
 
-  // Encode state into a simple signed token so the client can't tamper
-  // For now (no auth / no DB), we include serverSeed in the response but tell the
-  // client not to peek. Production would store this server-side.
+  const session = await auth();
+  if (session?.user?.id) {
+    let balance: number;
+    try {
+      balance = Number(await reserveBet(session.user.id, BigInt(betAmount)));
+    } catch (err) {
+      if (err instanceof InsufficientBalanceError) {
+        return NextResponse.json({ error: "Insufficient balance" }, { status: 400 });
+      }
+      throw err;
+    }
+    const token = await createRound(session.user.id, "mines", BigInt(betAmount), {
+      serverSeed, serverSeedHash, clientSeed, mineCount, minePositions, betAmount,
+    });
+    return NextResponse.json({ token, serverSeedHash, clientSeed, mineCount, gridSize: 25, balance });
+  }
+
+  // Guest: opaque client-visible blob (documented limitation — see round-store.ts).
   const state = Buffer.from(
     JSON.stringify({ serverSeed, clientSeed, mineCount, minePositions, betAmount })
   ).toString("base64");
 
-  return NextResponse.json({
-    state,            // opaque blob the client sends back on each request
-    serverSeedHash,
-    clientSeed,
-    mineCount,
-    gridSize: 25,
-  });
+  return NextResponse.json({ state, serverSeedHash, clientSeed, mineCount, gridSize: 25 });
 }

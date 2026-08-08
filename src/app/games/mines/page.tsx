@@ -12,7 +12,8 @@ type TileState = "hidden" | "safe" | "mine";
 
 interface GameState {
   active: boolean;
-  state: string;
+  state: string | null;  // guest: opaque blob
+  token: string | null;  // authenticated: server-side round id
   serverSeedHash: string;
   mineCount: number;
   tiles: TileState[];
@@ -26,7 +27,8 @@ interface GameState {
 
 const INITIAL: GameState = {
   active: false,
-  state: "",
+  state: null,
+  token: null,
   serverSeedHash: "",
   mineCount: 3,
   tiles: Array(25).fill("hidden"),
@@ -39,7 +41,7 @@ const INITIAL: GameState = {
 };
 
 export default function MinesPage() {
-  const { applyProfit, balance } = useBalance();
+  const { applyProfit, syncBalance, balance } = useBalance();
   const { clientSeed } = useSettings();
   const [betAmount, setBetAmount] = useState(100_00);
   const [mineCount, setMineCount] = useState(3);
@@ -56,17 +58,19 @@ export default function MinesPage() {
         body: JSON.stringify({ betAmount, mineCount, clientSeed }),
       });
       const data = await res.json();
+      if (data.balance !== undefined) syncBalance(data.balance);
       setGame({
         ...INITIAL,
         active: true,
-        state: data.state,
+        state: data.state ?? null,
+        token: data.token ?? null,
         serverSeedHash: data.serverSeedHash,
         mineCount,
       });
     } finally {
       setLoading(false);
     }
-  }, [betAmount, mineCount, balance, loading, clientSeed]);
+  }, [betAmount, mineCount, balance, loading, clientSeed, syncBalance]);
 
   const revealTile = useCallback(
     async (index: number) => {
@@ -77,7 +81,7 @@ export default function MinesPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            state: game.state,
+            ...(game.token ? { token: game.token } : { state: game.state }),
             tileIndex: index,
             revealedCount: game.revealedCount,
           }),
@@ -99,7 +103,7 @@ export default function MinesPage() {
             minePositions: data.minePositions,
             lastProfit: data.profit,
           }));
-          applyProfit(data.profit);
+          if (data.balance !== undefined) syncBalance(data.balance); else applyProfit(data.profit);
         } else {
           const newTiles = [...game.tiles];
           newTiles[index] = "safe";
@@ -115,7 +119,7 @@ export default function MinesPage() {
         setLoading(false);
       }
     },
-    [game, loading, applyProfit]
+    [game, loading, applyProfit, syncBalance]
   );
 
   const cashout = useCallback(async () => {
@@ -125,7 +129,10 @@ export default function MinesPage() {
       const res = await fetch("/api/games/mines/cashout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ state: game.state, revealedCount: game.revealedCount }),
+        body: JSON.stringify({
+          ...(game.token ? { token: game.token } : { state: game.state }),
+          revealedCount: game.revealedCount,
+        }),
       });
       const data = await res.json();
       const newTiles = [...game.tiles];
@@ -141,11 +148,11 @@ export default function MinesPage() {
         minePositions: data.minePositions,
         lastProfit: data.profit,
       }));
-      applyProfit(data.profit);
+      if (data.balance !== undefined) syncBalance(data.balance); else applyProfit(data.profit);
     } finally {
       setLoading(false);
     }
-  }, [game, loading, applyProfit]);
+  }, [game, loading, applyProfit, syncBalance]);
 
   const currentProfit = game.active && game.revealedCount > 0
     ? Math.floor(betAmount * (game.currentMultiplier - 1))

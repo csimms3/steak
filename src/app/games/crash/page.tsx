@@ -16,6 +16,7 @@ interface RoundResult {
   win: boolean;
   serverSeed: string;
   clientSeed: string;
+  balance?: number;
 }
 
 const TICK_MS = 50;
@@ -26,7 +27,7 @@ function calcMultiplier(elapsedMs: number): number {
 }
 
 export default function CrashPage() {
-  const { applyProfit, balance } = useBalance();
+  const { applyProfit, syncBalance, balance } = useBalance();
   const { clientSeed } = useSettings();
   const [betAmount, setBetAmount] = useState(100_00);
   const [phase, setPhase] = useState<Phase>("idle");
@@ -39,6 +40,7 @@ export default function CrashPage() {
   const startTimeRef = useRef<number>(0);
   const crashPointRef = useRef<number>(1);
   const gameStateRef = useRef<string>("");
+  const gameTokenRef = useRef<string | null>(null);
   const betAmountRef = useRef<number>(betAmount);
 
   useEffect(() => { betAmountRef.current = betAmount; }, [betAmount]);
@@ -61,7 +63,9 @@ export default function CrashPage() {
         body: JSON.stringify({ action: "start", betAmount, clientSeed }),
       });
       const data = await res.json();
-      gameStateRef.current = data.state;
+      if (data.balance !== undefined) syncBalance(data.balance);
+      gameStateRef.current = data.state ?? "";
+      gameTokenRef.current = data.token ?? null;
       crashPointRef.current = data.crashPoint;
 
       // Short betting countdown then go
@@ -80,26 +84,47 @@ export default function CrashPage() {
             setCrashPoint(crashPointRef.current);
             setPhase("crashed");
             setHistory((h) => [crashPointRef.current, ...h].slice(0, 15));
-            // Settle as bust
-            applyProfit(-betAmountRef.current);
-            setResult({
-              crashPoint: crashPointRef.current,
-              cashedOutAt: null,
-              profit: -betAmountRef.current,
-              win: false,
-              serverSeed: "",
-              clientSeed: "",
-            });
+
+            if (gameTokenRef.current) {
+              // Authenticated: settle the bust server-side too, so the
+              // GameSession gets recorded and the round row is cleaned up —
+              // the bet was already reserved at start, so balance itself
+              // doesn't change further here.
+              fetch("/api/games/crash/round", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  action: "cashout",
+                  token: gameTokenRef.current,
+                  bust: true,
+                }),
+              })
+                .then((r) => r.json())
+                .then((data: RoundResult) => {
+                  if (data.balance !== undefined) syncBalance(data.balance);
+                  setResult(data);
+                });
+            } else {
+              applyProfit(-betAmountRef.current);
+              setResult({
+                crashPoint: crashPointRef.current,
+                cashedOutAt: null,
+                profit: -betAmountRef.current,
+                win: false,
+                serverSeed: "",
+                clientSeed: "",
+              });
+            }
           }
         }, TICK_MS);
       }, 800);
     } catch {
       setPhase("idle");
     }
-  }, [betAmount, balance, phase, stopTicker, applyProfit, clientSeed]);
+  }, [betAmount, balance, phase, stopTicker, applyProfit, syncBalance, clientSeed]);
 
   const cashout = useCallback(async () => {
-    if (phase !== "flying" || !gameStateRef.current) return;
+    if (phase !== "flying" || (!gameStateRef.current && !gameTokenRef.current)) return;
     const cashedAt = multiplier;
     stopTicker();
     setPhase("cashedout");
@@ -110,7 +135,7 @@ export default function CrashPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "cashout",
-          state: gameStateRef.current,
+          ...(gameTokenRef.current ? { token: gameTokenRef.current } : { state: gameStateRef.current }),
           cashedOutAt: cashedAt,
         }),
       });
@@ -118,11 +143,11 @@ export default function CrashPage() {
       setCrashPoint(data.crashPoint);
       setHistory((h) => [data.crashPoint, ...h].slice(0, 15));
       setResult(data);
-      applyProfit(data.profit);
+      if (data.balance !== undefined) syncBalance(data.balance); else applyProfit(data.profit);
     } catch {
       setPhase("idle");
     }
-  }, [phase, multiplier, stopTicker, applyProfit]);
+  }, [phase, multiplier, stopTicker, applyProfit, syncBalance]);
 
   const resetRound = () => {
     stopTicker();

@@ -8,6 +8,11 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Real accounts and server-authoritative balance** — registration and login (next-auth v5, Credentials provider, bcrypt, JWT sessions); every one of the 13 games now settles through an atomic database transaction (`src/lib/game-balance.ts`) when logged in, with balance, bet history, and in-progress game state persisted in Postgres. Guest mode (no account) is unchanged — same `localStorage`-backed balance, same games, same math.
+- **Bet history** (`/history`) — paginated, most-recent-first record of every resolved bet, backed by a new `GameSession` table
+- **Secure server-side round state** (`GameRound`) for the 6 stateful games (Mines, Hilo, Dragon Tower, Blackjack, Video Poker, Crash) — authenticated play now keeps secret in-progress data (mine positions, dealt cards, the crash point) server-side instead of in the client-visible base64 blob those games previously relied on for all play. Closes a real integrity gap: the blob was unsigned and readable by anyone who decoded it.
+- **Crash cashout security fix** — the server previously trusted whatever `cashedOutAt` a client reported at cashout outright; a client that already knew `crashPoint` (necessarily visible for the client-side countdown animation) could claim near-maximum profit with zero elapsed time, on every round. Now validated against real server-side elapsed time via `crashMultiplierAtElapsed()`. Documented residual gap: a scripted client that waits the correct real time before claiming still isn't fully preventable without a real-time multiplayer round loop (out of scope, see `docs/roadmap.md`).
+- Prisma schema rewritten to cover all 13 games (previously only listed `dice | mines | plinko` from the original scaffold); unused `CrashRound`/`CrashBet` models (for a multiplayer round concept never built) removed
 - **Blackjack** — standard rules: hit/stand/double/split (one split, no resplit), dealer stands on soft 17, 3:2 blackjack payout, push on ties
 - **Video Poker** — Jacks or Better, standard 9/6 paytable; deal 5, hold any subset, draw replacements, pay by final hand rank
 - **Hilo** — deal a card, guess higher or lower on each next card; step multiplier is 0.99/P(win) based on exact rank distribution; cashout any time; bust reveals server seed
@@ -41,6 +46,9 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Replaced `next/font/google` (Geist) with system font stack to eliminate blocking network call on load
 
 ### Fixed
+- Crash bust settlement scored as a win at exactly the crash point — the server's bust-check is `cashedOutAt > crashPoint` (strictly greater), and the initial fix for the cashout exploit above sent `cashedOutAt === crashPoint` to signal a bust, which slipped through as a break-even win instead. Replaced with an explicit `bust` boolean rather than a numeric sentinel.
+- README/CONTRIBUTING/architecture docs described a backend (auth, Postgres, real-time Crash via Socket.io/Redis) that was never built — `docker-compose.yml`, the Prisma schema, and `next-auth`/`@prisma/client` sat in `package.json` fully unwired since the original scaffold. Docs now describe what's actually built; the unwired dependencies are wired up as part of this same change.
+- `BalanceContext`'s lazy `useState` initializer read real `localStorage` during the client's first render, which can never match the server's SSR render — any returning guest with a non-default saved balance triggered a full-tree hydration error on every page load. Fixed by starting from the SSR-safe default and adopting the real value in an effect immediately after mount.
 - Plinko board SVG clipping (peg spacing now divides by `rows + 1`)
 - `lucide-react` Turbopack RSC manifest error (added `transpilePackages`, `"use client"` on lobby)
 - `BetInput` overflow in narrow panels (stacked layout)

@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Wallet, RotateCcw, Zap, Settings } from "lucide-react";
+import { useSession, signOut } from "next-auth/react";
+import { Wallet, RotateCcw, Zap, Settings, LogOut, LogIn } from "lucide-react";
 import { useBalance } from "@/context/BalanceContext";
 import { cn } from "@/lib/cn";
 
 export function Header() {
   const { balance, reset, fmt } = useBalance();
   const path = usePathname();
+  const { data: session, status } = useSession();
 
   return (
     <header className="sticky top-0 z-10 flex items-center px-4 md:px-6 h-14 bg-[var(--surface)]/90 backdrop-blur-md border-b border-[var(--border)]">
@@ -38,18 +40,46 @@ export function Header() {
 
       <div className="flex-1" />
 
-      <Link
-        href="/settings"
-        title="Settings"
-        className={cn(
-          "flex items-center justify-center w-8 h-8 rounded-lg border transition-colors",
-          path === "/settings"
-            ? "bg-[var(--accent)] border-[var(--accent)] text-white"
-            : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)] hover:border-[var(--accent)]"
+      <div className="flex items-center gap-2">
+        {status === "authenticated" ? (
+          <>
+            <span className="hidden sm:inline text-xs font-semibold text-[var(--muted)] max-w-[8rem] truncate">
+              {session.user?.name}
+            </span>
+            <button
+              onClick={() => signOut({ callbackUrl: "/" })}
+              title="Log out"
+              className="flex items-center justify-center w-8 h-8 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted)] hover:text-[var(--text)] hover:border-[var(--accent)] transition-colors"
+            >
+              <LogOut size={14} />
+            </button>
+          </>
+        ) : (
+          status !== "loading" && (
+            <Link
+              href="/login"
+              title="Log in"
+              className="flex items-center gap-1.5 px-3 h-8 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)] hover:border-[var(--accent)] transition-colors"
+            >
+              <LogIn size={13} />
+              Log In
+            </Link>
+          )
         )}
-      >
-        <Settings size={14} />
-      </Link>
+
+        <Link
+          href="/settings"
+          title="Settings"
+          className={cn(
+            "flex items-center justify-center w-8 h-8 rounded-lg border transition-colors",
+            path === "/settings"
+              ? "bg-[var(--accent)] border-[var(--accent)] text-white"
+              : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)] hover:border-[var(--accent)]"
+          )}
+        >
+          <Settings size={14} />
+        </Link>
+      </div>
     </header>
   );
 }

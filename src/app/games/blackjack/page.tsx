@@ -13,14 +13,14 @@ import { cn } from "@/lib/cn";
 
 interface StartResponse {
   playerCards: Card[]; dealerUpCard: Card; dealerCards?: Card[];
-  state: string | null; serverSeedHash: string; clientSeed: string;
+  state?: string | null; token?: string; serverSeedHash: string; clientSeed: string;
   canDouble: boolean; canSplit: boolean; stage: "player" | "done";
-  result?: HandResult; profit?: number; serverSeed?: string;
+  result?: HandResult; profit?: number; serverSeed?: string; balance?: number;
 }
 interface ActionResponse {
   hands: BlackjackHand[]; currentHandIndex: number; stage: "player" | "done";
-  state: string | null; canDouble: boolean; canSplit: boolean;
-  dealerCards?: Card[]; results?: HandResult[]; profit?: number; serverSeed?: string;
+  state: string | null; token?: string; canDouble: boolean; canSplit: boolean;
+  dealerCards?: Card[]; results?: HandResult[]; profit?: number; serverSeed?: string; balance?: number;
 }
 
 const RESULT_LABEL: Record<HandResult, string> = {
@@ -49,7 +49,7 @@ function HandDisplay({ hand, active, result, label }: { hand: BlackjackHand; act
 type Phase = "idle" | "playing" | "done";
 
 export default function BlackjackPage() {
-  const { applyProfit, balance } = useBalance();
+  const { applyProfit, syncBalance, balance } = useBalance();
   const { clientSeed: settingsSeed } = useSettings();
   const [betAmount, setBetAmount] = useState(100_00);
   const [phase, setPhase] = useState<Phase>("idle");
@@ -60,6 +60,7 @@ export default function BlackjackPage() {
   const [hands, setHands] = useState<BlackjackHand[]>([]);
   const [currentHandIndex, setCurrentHandIndex] = useState(0);
   const [gameState, setGameState] = useState<string | null>(null);
+  const [gameToken, setGameToken] = useState<string | null>(null);
   const [canDouble, setCanDouble] = useState(false);
   const [canSplit, setCanSplit] = useState(false);
   const [results, setResults] = useState<HandResult[] | null>(null);
@@ -79,11 +80,12 @@ export default function BlackjackPage() {
         body: JSON.stringify({ betAmount, clientSeed: settingsSeed }),
       });
       const data: StartResponse = await res.json();
+      if (data.balance !== undefined) syncBalance(data.balance);
       setServerSeedHash(data.serverSeedHash);
       setClientSeed(data.clientSeed);
 
       if (data.stage === "done") {
-        applyProfit(data.profit!);
+        if (data.balance === undefined) applyProfit(data.profit!);
         setDealerCards(data.dealerCards!);
         setDealerHidden(false);
         setHands([{ cards: data.playerCards, bet: betAmount, finished: true, busted: false, doubled: false }]);
@@ -91,6 +93,7 @@ export default function BlackjackPage() {
         setTotalProfit(data.profit!);
         setServerSeed(data.serverSeed!);
         setGameState(null);
+        setGameToken(null);
         setCurrentHandIndex(0);
         setPhase("done");
       } else {
@@ -102,23 +105,24 @@ export default function BlackjackPage() {
         setResults(null);
         setTotalProfit(null);
         setServerSeed(null);
-        setGameState(data.state);
+        setGameState(data.state ?? null);
+        setGameToken(data.token ?? null);
         setCurrentHandIndex(0);
         setPhase("playing");
       }
     } finally {
       setBusy(false);
     }
-  }, [betAmount, balance, busy, applyProfit, settingsSeed]);
+  }, [betAmount, balance, busy, applyProfit, syncBalance, settingsSeed]);
 
   const act = useCallback(async (action: BlackjackAction) => {
-    if (!gameState || busy) return;
+    if ((!gameState && !gameToken) || busy) return;
     setBusy(true);
     try {
       const res = await fetch("/api/games/blackjack/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ state: gameState, action }),
+        body: JSON.stringify({ ...(gameToken ? { token: gameToken } : { state: gameState }), action }),
       });
       const data: ActionResponse = await res.json();
       setHands(data.hands);
@@ -127,21 +131,23 @@ export default function BlackjackPage() {
       setCanSplit(data.canSplit);
 
       if (data.stage === "done") {
-        applyProfit(data.profit!);
+        if (data.balance !== undefined) syncBalance(data.balance); else applyProfit(data.profit!);
         setDealerCards(data.dealerCards!);
         setDealerHidden(false);
         setResults(data.results!);
         setTotalProfit(data.profit!);
         setServerSeed(data.serverSeed!);
         setGameState(null);
+        setGameToken(null);
         setPhase("done");
       } else {
         setGameState(data.state);
+        if (data.token) setGameToken(data.token);
       }
     } finally {
       setBusy(false);
     }
-  }, [gameState, busy, applyProfit]);
+  }, [gameState, gameToken, busy, applyProfit, syncBalance]);
 
   const reset = () => {
     setPhase("idle"); setHands([]); setDealerCards([]); setResults(null); setTotalProfit(null); setServerSeed(null);

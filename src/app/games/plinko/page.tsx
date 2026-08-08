@@ -302,7 +302,7 @@ interface PlinkoResult {
 }
 
 export default function PlinkoPage() {
-  const { applyProfit, balance } = useBalance();
+  const { applyProfit, syncBalance, balance } = useBalance();
   const { clientSeed } = useSettings();
   const [betAmount, setBetAmount]   = useState(100_00);
   const [rows, setRows]             = useState<8 | 12 | 16>(8);
@@ -335,16 +335,20 @@ export default function PlinkoPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ betAmount, rows, risk, count: ballCount, clientSeed }),
       });
-      const raw = await res.json();
-      const results: PlinkoResult[] = ballCount === 1 ? [raw] : raw;
+      const data: { results: PlinkoResult[]; balance?: number } = await res.json();
+      const results = data.results;
 
-      // Apply profit immediately (server already resolved)
+      // Apply profit immediately (server already resolved).
+      // Authenticated: trust the server's aggregate balance directly, applied
+      // once — not per ball, since it's already the correct final total.
+      // Guest: accumulate locally, same as every other game page.
       let total = 0;
       results.forEach(r => {
         total += r.profit;
-        applyProfit(r.profit);
+        if (data.balance === undefined) applyProfit(r.profit);
         setHistory(h => [{ multiplier: r.multiplier, profit: r.profit }, ...h].slice(0, 40));
       });
+      if (data.balance !== undefined) syncBalance(data.balance);
       totalProfitRef.current = total;
       setLastResult(results[results.length - 1]);
 
@@ -375,7 +379,7 @@ export default function PlinkoPage() {
     } catch {
       setDropping(false);
     }
-  }, [betAmount, ballCount, balance, rows, risk, dropping, applyProfit, clientSeed]);
+  }, [betAmount, ballCount, balance, rows, risk, dropping, applyProfit, syncBalance, clientSeed]);
 
   const totalBet = (betAmount * ballCount) / 100;
 

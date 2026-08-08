@@ -7,6 +7,8 @@ import {
   resolveFlip,
   type Side,
 } from "@/lib/game-engine";
+import { auth } from "@/auth";
+import { settleBet, InsufficientBalanceError } from "@/lib/game-balance";
 
 const schema = z.object({
   betAmount: z.number().int().min(100).max(10_000_00),
@@ -30,6 +32,33 @@ export async function POST(req: NextRequest) {
 
   const result = resolveFlip(serverSeed, clientSeed, nonce, BigInt(betAmount), side as Side, targetStreak);
 
+  const session = await auth();
+  let balance: number | undefined;
+  if (session?.user?.id) {
+    try {
+      balance = Number(
+        await settleBet({
+          userId: session.user.id,
+          game: "flip",
+          betAmount: BigInt(betAmount),
+          profit: result.profit,
+          multiplier: result.multiplier,
+          serverSeed,
+          serverSeedHash,
+          clientSeed,
+          nonce,
+          outcome: { flips: result.flips, side: result.side, streak: result.streak, targetStreak, win: result.win },
+          reserved: false,
+        })
+      );
+    } catch (err) {
+      if (err instanceof InsufficientBalanceError) {
+        return NextResponse.json({ error: "Insufficient balance" }, { status: 400 });
+      }
+      throw err;
+    }
+  }
+
   return NextResponse.json({
     flips: result.flips,
     side: result.side,
@@ -42,5 +71,6 @@ export async function POST(req: NextRequest) {
     serverSeedHash,
     clientSeed,
     nonce,
+    ...(balance !== undefined ? { balance } : {}),
   });
 }

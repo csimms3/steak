@@ -14,6 +14,7 @@ interface FlipResponse {
   flips: Side[]; side: Side; streak: number; targetStreak: number; win: boolean;
   multiplier: number; profit: number;
   serverSeed: string; serverSeedHash: string; clientSeed: string; nonce: number;
+  balance?: number;
 }
 
 const STREAKS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -30,7 +31,7 @@ function Coin({ side, revealed }: { side: Side | null; revealed: boolean }) {
 }
 
 export default function FlipPage() {
-  const { applyProfit, balance } = useBalance();
+  const { applyProfit, syncBalance, balance } = useBalance();
   const { clientSeed } = useSettings();
   const [betAmount, setBetAmount] = useState(100_00);
   const [side, setSide] = useState<Side>("heads");
@@ -62,14 +63,14 @@ export default function FlipPage() {
       });
       const total = data.flips.length * 350 + 200;
       timers.current.push(setTimeout(() => {
-        applyProfit(data.profit);
+        if (data.balance !== undefined) syncBalance(data.balance); else applyProfit(data.profit);
         setLast(data);
         setFlipping(false);
       }, total));
     } catch {
       setFlipping(false);
     }
-  }, [betAmount, balance, side, targetStreak, flipping, applyProfit, clientSeed]);
+  }, [betAmount, balance, side, targetStreak, flipping, applyProfit, syncBalance, clientSeed]);
 
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 

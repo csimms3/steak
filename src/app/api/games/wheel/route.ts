@@ -9,6 +9,8 @@ import {
   type WheelSegments,
   type WheelRisk,
 } from "@/lib/game-engine";
+import { auth } from "@/auth";
+import { settleBet, InsufficientBalanceError } from "@/lib/game-balance";
 
 const schema = z.object({
   betAmount: z.number().int().min(100).max(10_000_00),
@@ -35,6 +37,33 @@ export async function POST(req: NextRequest) {
     segments as WheelSegments, risk as WheelRisk
   );
 
+  const session = await auth();
+  let balance: number | undefined;
+  if (session?.user?.id) {
+    try {
+      balance = Number(
+        await settleBet({
+          userId: session.user.id,
+          game: "wheel",
+          betAmount: BigInt(betAmount),
+          profit: result.profit,
+          multiplier: result.multiplier,
+          serverSeed,
+          serverSeedHash,
+          clientSeed,
+          nonce,
+          outcome: { segmentIndex: result.segmentIndex, segments, risk },
+          reserved: false,
+        })
+      );
+    } catch (err) {
+      if (err instanceof InsufficientBalanceError) {
+        return NextResponse.json({ error: "Insufficient balance" }, { status: 400 });
+      }
+      throw err;
+    }
+  }
+
   return NextResponse.json({
     segmentIndex: result.segmentIndex,
     multiplier: result.multiplier,
@@ -44,5 +73,6 @@ export async function POST(req: NextRequest) {
     serverSeedHash,
     clientSeed,
     nonce,
+    ...(balance !== undefined ? { balance } : {}),
   });
 }

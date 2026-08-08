@@ -13,6 +13,7 @@ import { cn } from "@/lib/cn";
 interface WheelResponse {
   segmentIndex: number; multiplier: number; profit: number; ring: number[];
   serverSeed: string; serverSeedHash: string; clientSeed: string; nonce: number;
+  balance?: number;
 }
 
 const SIZE = 320;
@@ -30,7 +31,7 @@ function segColor(m: number): string {
 }
 
 export default function WheelPage() {
-  const { applyProfit, balance } = useBalance();
+  const { applyProfit, syncBalance, balance } = useBalance();
   const { clientSeed } = useSettings();
   const [betAmount, setBetAmount] = useState(100_00);
   const [segments, setSegments] = useState<WheelSegments>(30);
@@ -110,14 +111,14 @@ export default function WheelPage() {
       rotRef.current = landed;
       setRotation(landed);
       settleTimer.current = setTimeout(() => {
-        applyProfit(data.profit);
+        if (data.balance !== undefined) syncBalance(data.balance); else applyProfit(data.profit);
         setLast(data);
         setSpinning(false);
       }, 4200);
     } catch {
       setSpinning(false);
     }
-  }, [betAmount, balance, segments, risk, spinning, applyProfit, clientSeed]);
+  }, [betAmount, balance, segments, risk, spinning, applyProfit, syncBalance, clientSeed]);
 
   useEffect(() => () => { if (settleTimer.current) clearTimeout(settleTimer.current); }, []);
 

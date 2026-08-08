@@ -1,43 +1,37 @@
 # Roadmap: Steak
 
-> Milestones beyond ~3 months are intentionally high-level. Plans change.
+> Milestones beyond ~3 months are intentionally high-level. Plans change — this roadmap didn't ship in its original numerical order (v0.3.0's game library shipped before v0.1.0's accounts/persistence did), and that's noted below rather than smoothed over.
 
 ## v0.1.0 — MVP
 
-**Goal**: A fully playable social casino with four provably fair games, real-time Crash, and a persistent chip balance — end-to-end.
-**Target**: TBD
+**Goal**: A fully playable social casino with provably fair games and a persistent chip balance, end-to-end.
+**Status**: Mostly done, via a different path than originally planned — see v0.4.0.
 
-### Features
-- User registration and login (credentials auth, bcrypt passwords)
-- Configurable default starting balance (admin settings panel)
-- Lobby page with game grid and live Crash stats
-- Crash — real-time multiplayer Socket.io game with cashout
-- Dice — instant single-player roll
-- Mines — interactive grid reveal with incremental cashout
-- Plinko — animated ball drop with row-based multiplier
-- Per-bet provably fair verification (server seed commitment + reveal)
-- Balance history / recent bet feed per player
-- Docker Compose for local development (Postgres + Redis + app + ws)
-- GitHub Actions CI (lint, typecheck, test)
-
-### Done when
-- All four games resolve correctly across 1000 simulated bets with no balance drift
-- Two players can play Crash simultaneously and cash out independently without conflict
-- Admin can set starting balance; new registrations receive the configured amount
-- All game outcomes pass provably fair self-verification
-
----
+| Feature | Status |
+|---|---|
+| User registration and login (credentials auth, bcrypt passwords) | ✅ Done (v0.4.0) |
+| Persistent, server-authoritative chip balance | ✅ Done (v0.4.0) |
+| Dice — instant single-player roll | ✅ Done |
+| Mines — interactive grid reveal with incremental cashout | ✅ Done |
+| Plinko — animated ball drop with row-based multiplier | ✅ Done |
+| Crash — cash out before it crashes | ✅ Done, **single-player** (see below) |
+| Per-bet provably fair verification | ✅ Done |
+| Balance history / recent bet feed per player | ✅ Done (v0.4.0, `/history`) |
+| GitHub Actions CI (lint, typecheck, test) | ✅ Done |
+| Docker Compose for local development | ✅ Done, Postgres only — no WS/Redis services (see `docs/architecture.md` ADR-001) |
+| Crash as **real-time multiplayer** (shared round, Socket.io) | ❌ Not done — descoped, see ADR-001 |
+| Admin settings panel (configurable default starting balance) | ❌ Not done — `Settings` model exists in the schema, unused |
 
 ## v0.2.0 — Polish & Social Layer
 
 **Goal**: Make the lobby feel alive and give players reasons to return.
-**Target**: TBD
+**Status**: Not started.
 
 ### Features
 - Global leaderboard (all-time profit)
 - Live big-win feed in lobby
 - Auto-bet mode for Dice and Mines (configurable rounds + stop conditions)
-- Admin balance top-up for individual accounts
+- Admin balance top-up for individual accounts (needs the admin panel from v0.1.0 first)
 - Improved mobile responsiveness
 
 ### Done when
@@ -48,59 +42,72 @@
 
 ## v0.3.0 — Game Library Expansion
 
-**Goal**: Grow from 4 games to a full Stake-style library of 18, built in tiers from
-simplest to most complex on the existing mock-balance foundation.
-**Target**: TBD
+**Goal**: Grow from 4 games to a full Stake-style library, built in tiers from simplest to most complex on the mock-balance foundation that existed at the time.
+**Status**: Partially done — 9 of the 14 planned games shipped.
 
-### Games (14 new)
-- **Instant**: Limbo, Wheel, Flip
-- **Multi-draw**: Keno, Diamonds
-- **Stateful step**: Hilo, Dragon Tower
-- **Card table**: Blackjack, Video Poker
-- **Wheel/table classics**: Roulette, Baccarat
-- **Reveal/luck**: Cases, Scratch, Slots
+| Tier | Games | Status |
+|---|---|---|
+| Instant | Limbo, Wheel, Flip | ✅ Done |
+| Multi-draw | Keno, Diamonds | ✅ Done |
+| Stateful step | Hilo, Dragon Tower | ✅ Done |
+| Card table | Blackjack, Video Poker | ✅ Done |
+| Wheel/table classics | Roulette, Baccarat | ❌ Not built |
+| Reveal/luck | Cases, Scratch, Slots | ❌ Not built |
 
-### Foundation
-- Shared provably-fair card engine (`cards.ts`) — 52-card shuffle, blackjack/baccarat/poker evaluators
-- Reusable opaque game-state codec (`state.ts`)
+### Foundation (done)
+- Shared provably-fair card engine (`cards.ts`) — 52-card shuffle, poker hand evaluator
 - Shared UI: `GameShell`, `PlayingCard`, `ResultBanner`
 
+The remaining 5 games (Roulette, Baccarat, Cases, Scratch, Slots) are a clean continuation of the same pattern every shipped game already follows — engine + tests + route(s) + page + registration — see `CONTRIBUTING.md`.
+
+---
+
+## v0.4.0 — Real Accounts & Persisted Balance
+
+**Goal**: Replace the client-only mock balance with real accounts and a server-authoritative balance, and close a real integrity gap surfaced along the way.
+**Status**: Done.
+
+### Features
+- Registration and login (next-auth v5, Credentials provider, bcrypt, JWT sessions)
+- Server-authoritative balance for all 13 games — every resolved bet is one atomic database transaction (`src/lib/game-balance.ts`)
+- Secure server-side round state (`GameRound`) for the 6 stateful games' authenticated play, replacing the client-visible base64 blob that shipped secrets (mine positions, dealt cards, the crash point) in the clear — guest play keeps the original blob unchanged
+- Crash-specific fix: server-side elapsed-time validation on cashout claims, closing the "claim near-max profit with zero elapsed time" exploit the visible-blob design allowed (residual gap documented in `docs/architecture.md`)
+- Bet history (`/history`), paginated, backed by `GameSession`
+- Guest mode (no account) preserved exactly as it was — zero behavior change for anyone who doesn't log in
+
 ### Done when
-- Each game has engine + unit tests + API route(s) + page + lobby/nav registration
-- All games resolve deterministically from seeds and self-verify provably fair
-- Full suite (typecheck, lint, test) green
+- ✅ All 13 games settle correctly through the authoritative path, verified end-to-end against a real Postgres instance
+- ✅ Guest mode byte-identical to pre-v0.4.0 behavior
+- ✅ The Crash cashout exploit (client claims a value real elapsed time couldn't support) is closed and verified via direct API testing
 
 ---
 
 ## v1.0.0 — Stable Release
 
 **Goal**: Production-ready. Stable public API. Full documentation. Breaking changes require a major version bump from this point.
-**Target**: TBD
+**Status**: Not started.
 
 ### Features
-- Full provably fair audit history (per-user, paginated, downloadable)
+- Full provably fair audit history (per-user, paginated, downloadable) — `/history` is a start, not the full ask
 - Light/dark mode toggle
 - Staging environment with separate DB
-- Complete CONTRIBUTING.md and developer docs
-- Full test coverage on game engine and balance mutation paths
+- Full test coverage on balance mutation paths under real concurrency (current tests mock Prisma — see `CONTRIBUTING.md`)
 
 ### Done when
-- Full test coverage on core paths (game engine + balance mutations)
 - All public APIs documented
-- CONTRIBUTING.md complete with setup, test, and PR guide
 - No known P0 bugs
-- Zero balance drift across 100,000 simulated bets per game
+- Zero balance drift across large-scale simulated bet runs per game
 
 ---
 
 ## Backlog (v1.x+)
 
-- Limbo game (Stake original — simple but satisfying)
-- Keno game
+- Roulette, Baccarat, Cases, Scratch, Slots (remainder of v0.3.0's original 14)
+- Real-time multiplayer Crash (shared round, live broadcast) — the one gap v0.4.0's fix doesn't fully close
+- Admin settings panel (wire up the existing but unused `Settings` model)
 - Referral codes and bonus chips system
 - Customizable player profile (avatar, bio)
 - In-game chat (lobby-level, not per-game)
 - Replay viewer for Crash rounds
 - PWA / installable web app
 - Multi-language support (i18n)
-- Webhook system for external integrations (e.g. Discord bot alerts on big wins)

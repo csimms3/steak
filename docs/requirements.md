@@ -1,5 +1,7 @@
 # Requirements: Steak
 
+> **Historical document** — this is the original v0.1.0 planning doc, written before work started. Some of it shipped differently than planned (see [`docs/roadmap.md`](roadmap.md) for current status): real-time multiplayer Crash and the admin settings panel described below were never built, while the game library grew far beyond the original four. Kept as-is for planning history rather than edited to match reality after the fact.
+
 ## Problem Statement
 
 Steak is a play-money social casino that replicates the look, feel, and game library of Stake.com — without any real wagering. Players sign in, receive a configurable virtual chip balance, and play provably fair originals: Crash, Mines, Plinko, and Dice. It exists as a self-contained demo and party-game platform where there is no payment processing, no legal exposure, and no third-party casino SDK required. "Working" means: a player can register, receive a starting balance (configurable globally in settings), play all four games, and see wins and losses reflected in real time.

@@ -10,22 +10,35 @@ cd steak
 # Install dependencies
 npm install
 
-# Start infrastructure (Postgres + Redis)
-docker compose up -d
-
-# Apply database schema and generate Prisma client
-npx prisma migrate dev
-
-# Run the Next.js app and WebSocket server concurrently
+# Run the app
 npm run dev
 ```
 
-The app runs at `http://localhost:3000`. The Socket.io server runs at `http://localhost:3001`.
+The app runs at `http://localhost:3001` and works immediately as a guest (balance in `localStorage`) — no database needed for most frontend/game-engine work.
+
+### Working on auth, balance persistence, or bet history
+
+These require Postgres:
+
+```bash
+# Start local Postgres
+docker compose up -d
+
+# Point the app at it
+cp .env.example .env
+
+# Apply the schema and generate the Prisma client
+npx prisma migrate dev
+```
+
+`NEXTAUTH_SECRET` in `.env.example` is a placeholder — fine for local dev, generate a real one (`openssl rand -base64 32`) for anything deployed.
+
+If `docker compose` isn't an option on your machine, any local or hosted Postgres 16 instance works — just point `DATABASE_URL` at it before running the migration.
 
 ## Running Tests
 
 ```bash
-# Unit tests (game engine, provably fair RNG)
+# Unit tests (game engine, provably fair RNG, balance transaction logic)
 npm test
 
 # Type checking
@@ -35,7 +48,7 @@ npm run typecheck
 npm run lint
 ```
 
-All three must pass before opening a PR.
+All three must pass before opening a PR. The test suite is pure logic tests (game engine math, `settleBet`/`reserveBet` transaction logic against a mocked Prisma client) — there's no live-database test harness, so anything requiring real Postgres behavior needs manual verification.
 
 ## Commit Format
 

@@ -2,119 +2,132 @@
 
 ## System Overview
 
-Steak is a full-stack Next.js web application backed by PostgreSQL and a sidecar Socket.io server for real-time Crash gameplay. The Next.js app handles auth, REST endpoints, and all single-player game resolution; the WebSocket server runs the shared Crash game loop and broadcasts state to all connected clients. Both processes share the same Prisma database client and run from a single repository.
+Steak is a Next.js 15 (App Router) application with no separate backend process — every game resolves through a Next.js API route, and the same route handles both an unauthenticated guest and a logged-in user. There is no WebSocket server and no Redis; those appeared in an earlier planning pass but were never built, and the plan changed (see ADR-001).
+
+The app runs in two balance modes simultaneously, chosen per-request by whether a next-auth session exists:
+
+- **Guest** — balance lives in `localStorage`. Stateful games (Mines, Hilo, Dragon Tower, Blackjack, Video Poker, Crash) pass an opaque, unsigned base64 blob back and forth between client and server to carry state across requests.
+- **Authenticated** — balance lives in Postgres and is mutated server-side, inside the same transaction that resolves the bet. Stateful games' secret data (mine positions, dealt cards, the crash point) is stored server-side in a `GameRound` row instead of the blob, referenced by an opaque token the client can't decode.
+
+Every game page and API route supports both modes without a fork in the game logic itself — see [How balance works](#balance-model) below for exactly how that's wired.
 
 ## Components
 
 | Component | Responsibility | Technology |
 |---|---|---|
-| Web App | UI, routing, auth, single-player game API routes | Next.js 15 + TypeScript, App Router |
-| WebSocket Server | Crash game loop: tick, broadcast, cashout, settle | Node.js + Fastify + Socket.io |
-| Database | Users, balances, bets, game sessions, settings | PostgreSQL 16 + Prisma ORM |
-| Cache | Active Crash game state, leaderboard cache | Redis 7 |
-| Auth | Session management, JWT issuance | NextAuth.js v5 (credentials provider) |
-| Game Engine | Provably fair RNG, outcome computation for all games | Shared TypeScript module (`src/lib/game-engine/`) |
-| Styling | Component library, dark-mode-first design system | Tailwind CSS + shadcn/ui |
+| Web App | UI, routing, auth, all game API routes | Next.js 15 + TypeScript, App Router |
+| Database | Users, balances, bet history, in-progress round secrets | PostgreSQL 16 + Prisma ORM |
+| Auth | Credentials login, JWT sessions | NextAuth.js (Auth.js) v5 |
+| Game Engine | Provably fair RNG, outcome computation for all 13 games | Shared TypeScript module (`src/lib/game-engine/`) |
+| Balance | Server-authoritative debit/credit transactions | `src/lib/game-balance.ts` |
+| Round Store | Server-side secret state for in-progress stateful games | `src/lib/game-engine/round-store.ts` |
+| Styling | Dark, high-contrast design system | Tailwind CSS 4 |
+
+## Balance Model
+
+Two code paths, chosen by `auth()` inside each route handler — there's no middleware gate, each route just checks for a session and branches:
+
+**Guest** (no session): unchanged from the original client-only MVP. Stateless games resolve and return a signed `profit`; the client applies it to a `localStorage`-backed number via `BalanceContext.applyProfit()`. Stateful games' `start` route returns a base64-encoded JSON blob containing everything needed to resume — including secrets like Mines' `minePositions` — which the client round-trips on every subsequent request.
+
+**Authenticated** (session present): every response that resolves a bet includes a `balance` field, computed server-side. `BalanceContext.syncBalance()` sets React state directly from that field — no client-side math, no `localStorage` write. Two helpers in `src/lib/game-balance.ts` do the actual work:
+
+- `reserveBet(userId, betAmount)` — called at a stateful game's `start`. Atomically checks and decrements balance in one guarded `UPDATE ... WHERE balance >= betAmount`, so there's no read-then-write race window under concurrent requests from the same user.
+- `settleBet(params)` — called at every terminal resolution (a stateless game's single route, or a stateful game's loss/cashout). Applies the balance delta and writes a `GameSession` history row in one transaction. For an already-reserved bet, the credit is `betAmount + profit` (the reservation already covered the wager); for an unreserved stateless bet, it also re-validates affordability in the same atomic update.
+
+Stateful games' authenticated `start` route calls `createRound()` instead of building a blob — secrets go into a `GameRound` row, and the client gets back an opaque token (the row's id) instead of the blob. Subsequent requests load, and where the game's state evolves mid-round (Hilo's position/multiplier, Blackjack's hand state), update that row; the terminal request deletes it.
+
+### Why this exists: the blob was a real integrity gap
+
+The original base64 blob is unsigned and round-trips in the clear. For guest play that's an accepted limitation — nothing of value is at stake. But it means anyone can decode their own `state` string and read secrets meant to stay hidden until the round resolves: Mines' `minePositions`, Dragon Tower's dragon columns, even Crash's `crashPoint`. Once balance became real and persisted, shipping that unchanged would have been a genuine, easily-found exploit rather than a curiosity. Authenticated play moves that data server-side; guest play keeps the blob (see [ADR-005](#adr-005-guest-blob-vs-authenticated-round-store)).
+
+### Crash is a special case
+
+Crash's client runs its own local countdown animation with no server-push round loop, so `crashPoint` has to be sent to the client immediately at `start` — there's no way to run the animation otherwise. That means the blob-vs-round-store fix doesn't fully close Crash's gap: even with secrets server-side, the client still needs to *see* the crash point.
+
+What the round-store fix *does* close for Crash: the server no longer blindly trusts whatever `cashedOutAt` the client reports at cashout. `crashMultiplierAtElapsed()` mirrors the client's own animation formula and validates a claimed cashout against real server-side elapsed time (measured from the `GameRound` row's `createdAt`), clamping any claim time couldn't support. That closes the "claim `crashPoint - 0.01` the instant the round starts" exploit. What it does *not* close: a scripted client that already knows `crashPoint` and simply waits the correct real time before claiming, since the client legitimately has the number. Fully closing that needs a server-push round loop (true real-time multiplayer Crash) — out of scope here, see [roadmap.md](roadmap.md).
 
 ## Data Model
 
 **User**
 - `id` — UUID, primary key
-- `username` — string, unique
-- `email` — string, unique
-- `passwordHash` — string (bcrypt, cost ≥ 12)
-- `balance` — bigint (chips stored as integers, e.g. 1000 chips = 100000 in DB to avoid float math)
-- `role` — enum: `player | admin`
-- `createdAt` — timestamp
+- `username`, `email` — unique
+- `passwordHash` — bcrypt, cost 12
+- `balance` — `BigInt`, minor units (1 chip = 100 units, matching the client's cents-style display convention — avoids float rounding drift over many bets)
+- `role` — enum `player | admin` (present in the schema; no admin UI is wired up — see `Settings` below)
+- `createdAt`
+- has many `GameSession`, `GameRound`
 
-**GameSession** (single-player games: Dice, Mines, Plinko)
-- `id` — UUID
-- `userId` — FK → User
-- `game` — enum: `dice | mines | plinko`
-- `betAmount` — bigint
-- `profit` — bigint (negative on loss)
-- `multiplier` — float
-- `serverSeed` — string (revealed after game)
-- `serverSeedHash` — string (committed before game)
-- `clientSeed` — string (player-supplied or auto-generated)
-- `nonce` — integer (increments per user per game)
-- `outcome` — jsonb (game-specific result, e.g. revealed tiles for Mines)
-- `createdAt` — timestamp
+**GameSession** — one row per resolved bet, across all 13 games
+- `id`, `userId` (FK)
+- `game` — enum covering all 13 games
+- `betAmount`, `profit` — `BigInt`
+- `multiplier` — `Float`
+- `serverSeed`, `serverSeedHash`, `clientSeed`, `nonce` — the full provably-fair record for that bet
+- `outcome` — `Json`, game-specific (revealed tiles, dealt cards, drawn numbers, …)
+- `createdAt`
+- Indexed on `(userId, createdAt desc)` for the history page's pagination
 
-**CrashRound** (shared multiplayer instance)
-- `id` — UUID
-- `crashPoint` — float (the multiplier at which it crashed)
-- `serverSeed` — string (revealed after crash)
-- `serverSeedHash` — string (published before round starts)
-- `startedAt` — timestamp
-- `endedAt` — timestamp
+**GameRound** — server-side secret state for an in-progress stateful game (authenticated play only)
+- `id` — cuid, doubles as the opaque client-facing token
+- `userId` (FK), `game`, `betAmount`
+- `payload` — `Json`, whatever that game's secret state needs (mine positions, current deck position, the crash point, …)
+- `createdAt` — also used as the timing reference for Crash's elapsed-time cashout validation
+- Deleted on terminal resolution; nothing prunes an abandoned round left mid-game today (a known gap, not yet a problem at this scale)
 
-**CrashBet**
-- `id` — UUID
-- `crashRoundId` — FK → CrashRound
-- `userId` — FK → User
-- `betAmount` — bigint
-- `cashedOutAt` — float | null (null = busted)
-- `profit` — bigint
-- `createdAt` — timestamp
-
-**Settings** (admin-controlled, single-row table)
-- `id` — integer (always 1)
-- `defaultStartingBalance` — bigint
-- `updatedAt` — timestamp
-
-Relations:
-- User has many GameSessions
-- User has many CrashBets
-- CrashRound has many CrashBets
+**Settings** — single-row table (`defaultStartingBalance`) left over from an earlier admin-panel plan that was never built. Registration currently uses a request-supplied or hardcoded default instead of reading this row. Kept in the schema since removing it isn't worth the migration churn for an unused, harmless table; wiring it up is a fast-follow if an admin surface is ever built.
 
 ## External Integrations
 
-None. Steak is intentionally self-contained — no payment processors, no third-party game providers, no analytics SDKs, no CDN-hosted assets beyond standard npm packages. This is a deliberate non-goal.
-
-| Service | Purpose | Auth method |
-|---|---|---|
-| — | — | — |
+None. No payment processors, no third-party game providers, no analytics SDKs. Deliberate non-goal.
 
 ## Deployment
 
-- **Target**: Single VPS or local machine (Docker Compose). Two processes: Next.js app + WebSocket server.
-- **CI/CD**: GitHub Actions — lint, typecheck, test on every push to `main`.
-- **Environments**: `local` → `production` (no staging for v0.1.0; add staging at v1.0.0).
-- **Docker**: `docker-compose.yml` with services: `web` (Next.js), `ws` (Socket.io server), `postgres`, `redis`.
+- **App**: Vercel (native Next.js support, deploys from `main` on push).
+- **Database**: managed Postgres — Azure Database for PostgreSQL Flexible Server in this deployment, but any Postgres 16-compatible host works; nothing here is Azure-specific beyond the connection string.
+- **CI**: GitHub Actions — lint, typecheck, test on every push and PR (`.github/workflows/ci.yml`).
+- **Local dev**: `docker-compose.yml` runs Postgres only (no app/WS services — the app runs directly via `npm run dev`).
 
 ## Architecture Decision Records
 
-### ADR-001: Monolith vs. Separate Services
+### ADR-001: No separate real-time server
 
-**Status**: Accepted
-**Context**: The Crash game requires a persistent WebSocket server running a continuous game loop, which doesn't fit cleanly into Next.js API routes (serverless-style, stateless). The question was whether to split into microservices or keep a single repo with two processes.
-**Decision**: Single repository, two processes — Next.js app and a sidecar Socket.io server. Both share the same codebase, Prisma schema, and game-engine module. No inter-service HTTP calls needed; the WS server writes directly to Postgres.
-**Consequences**: Simpler to develop, deploy, and reason about. The WS server is a single point of failure for Crash — acceptable for v0.1.0. If Crash needs horizontal scaling later, this boundary makes extraction easy.
+**Status**: Accepted (supersedes an earlier, unbuilt plan for a Socket.io sidecar)
+**Context**: An earlier planning pass assumed Crash would need a persistent WebSocket process running a shared game loop, broadcasting state to every connected player. That was never built — the project shipped a much larger single-player game library instead, and real-time multiplayer Crash was explicitly descoped when this project pivoted to "make the whole story true" for a portfolio deploy rather than build the original full-multiplayer vision.
+**Decision**: Every game, including Crash, resolves through ordinary Next.js API routes. Crash's live-multiplier feel comes entirely from a client-side animation timer, not a shared server round.
+**Consequences**: Much simpler to build, deploy, and reason about — one process, no inter-service coordination. The tradeoff is Crash's residual cashout-timing gap described above in [Balance Model](#crash-is-a-special-case). If real-time multiplayer Crash is ever built, it's a substantial, separable addition, not a refactor of what's here.
 
 ---
 
-### ADR-002: PostgreSQL vs. SQLite
+### ADR-002: PostgreSQL over SQLite
 
 **Status**: Accepted
-**Context**: SQLite is tempting for a solo play-money project (zero infra). However, Crash involves concurrent writes from multiple players cashing out simultaneously, which requires row-level locking and proper transaction isolation.
-**Decision**: PostgreSQL. Prisma makes the switch from SQLite nearly free during development, so there's no reason to pick the weaker option.
-**Consequences**: Requires a running Postgres instance (handled by Docker Compose). More operational weight than SQLite, but correct behavior under concurrency is non-negotiable for a casino — even a fake one.
+**Context**: SQLite is tempting for a solo play-money project — zero infra. But even without real-time multiplayer, concurrent bets from the same user (e.g. two tabs) need correct transactional behavior, and a portfolio deploy benefits from demonstrating a real production-shaped database choice.
+**Decision**: PostgreSQL via Prisma.
+**Consequences**: Requires a running Postgres instance for anything beyond guest play (handled by `docker-compose.yml` locally, a managed instance in production). Correct behavior under concurrent writes — `reserveBet`'s guarded `UPDATE` is safe under this model in a way a naive read-then-write wouldn't be.
 
 ---
 
 ### ADR-003: Provably Fair RNG (HMAC-SHA256 Seed Chain)
 
 **Status**: Accepted
-**Context**: Casino games must be verifiably fair — players need to be able to confirm that outcomes weren't manipulated after they placed a bet. Several RNG schemes exist; the industry standard for crypto casinos is the HMAC-SHA256 seed chain.
-**Decision**: Each bet uses `HMAC-SHA256(serverSeed, clientSeed:nonce)` to generate a deterministic outcome. The server commits to `SHA256(serverSeed)` (the hash) before the round begins and reveals `serverSeed` after. Players can verify any past bet independently.
-**Consequences**: Adds a small amount of implementation complexity to the game engine. Provides a strong trust guarantee and is a marketable feature. The nonce prevents seed reuse across multiple bets with the same seeds.
+**Context**: Casino games — even play-money ones — should be verifiably fair. The industry-standard approach is an HMAC-SHA256 seed chain.
+**Decision**: Every bet derives its outcome from `HMAC-SHA256(serverSeed, clientSeed:nonce)`. The server commits to `SHA256(serverSeed)` before the bet resolves and reveals `serverSeed` after, so any player can independently recompute and verify the outcome.
+**Consequences**: Small implementation overhead in the game engine (`src/lib/game-engine/rng.ts`), verifiable fairness as a real, checkable property rather than a claim.
 
 ---
 
-### ADR-004: Integer Chip Storage (No Floats)
+### ADR-004: Integer chip storage (no floats)
 
 **Status**: Accepted
-**Context**: Storing chip balances as floats (e.g. `1000.50`) causes classic floating-point rounding errors that accumulate over many bets — catastrophic for any financial system, even a fake one.
-**Decision**: All balances and bet amounts are stored as bigints representing the smallest chip unit (e.g. 1 chip = 100 units). Display layer divides by 100 for rendering. All arithmetic happens in integer space.
-**Consequences**: Slight cognitive overhead when reading raw DB values. Eliminates an entire class of balance-drift bugs permanently.
+**Context**: Floating-point balances accumulate rounding error over many bets — a correctness bug in any financial system, real money or not.
+**Decision**: All balances and bet amounts are `BigInt` minor units (1 chip = 100 units) end-to-end on the server; the client divides by 100 only at the display boundary.
+**Consequences**: All arithmetic stays exact. Slight friction reading raw values in the database (`10000` means $100.00), fully eliminates balance-drift bugs.
+
+---
+
+### ADR-005: Guest blob vs. authenticated round store
+
+**Status**: Accepted
+**Context**: Stateful games' secret data (mine positions, dealt cards, the crash point) needs to persist across multiple requests for one round. The original, guest-only design encoded it into an unsigned base64 blob the client holds and resends — cheap, no database dependency, but readable by anyone who decodes it. That's an accepted limitation for guest play (nothing at stake) and a real integrity gap for authenticated play (real, persisted balance).
+**Decision**: Keep the blob for guests exactly as it was — no behavior change, no new dependency for the zero-friction path. For authenticated users, move the same secret data into a `GameRound` Postgres row, and hand the client an opaque token (the row's id) instead of the blob itself.
+**Consequences**: Two code paths per stateful route instead of one, each guarded by a small discriminated request shape (`state` XOR `token`). More surface area than a single unified design, but it means guest play needs zero new infrastructure, and authenticated play gets a real fix rather than a compromise applied to both. Crash's residual gap (see above) is the one case this ADR doesn't fully resolve, and that's called out explicitly rather than left implicit.

@@ -1,5 +1,7 @@
 # Issues
 
+> **Historical document** — planning-stage issue breakdown for the original v0.1.0 scope, written before work started and never synced to actual GitHub issues or updated as work landed. Every item below is still marked `open` regardless of what's actually shipped; see [`docs/roadmap.md`](roadmap.md) for current status. Kept for planning history.
+
 All v0.1.0 MVP issues. Status: `open` | `in progress` | `closed`.
 
 ---

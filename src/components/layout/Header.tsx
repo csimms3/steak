@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import { Wallet, RotateCcw, Zap, Settings, LogOut, LogIn } from "lucide-react";
+import { Wallet, RotateCcw, Zap, Settings, LogOut, LogIn, History } from "lucide-react";
 import { useBalance } from "@/context/BalanceContext";
 import { cn } from "@/lib/cn";
 
@@ -46,6 +46,18 @@ export function Header() {
             <span className="hidden sm:inline text-xs font-semibold text-[var(--muted)] max-w-[8rem] truncate">
               {session.user?.name}
             </span>
+            <Link
+              href="/history"
+              title="Bet history"
+              className={cn(
+                "flex items-center justify-center w-8 h-8 rounded-lg border transition-colors",
+                path === "/history"
+                  ? "bg-[var(--accent)] border-[var(--accent)] text-white"
+                  : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)] hover:border-[var(--accent)]"
+              )}
+            >
+              <History size={14} />
+            </Link>
             <button
               onClick={() => signOut({ callbackUrl: "/" })}
               title="Log out"

@@ -22,7 +22,7 @@ interface Game {
 }
 
 const GAMES: Game[] = [
-  { href: "/games/crash", label: "Crash", icon: Flame, badge: "Multiplayer", group: "originals", trend: 1,
+  { href: "/games/crash", label: "Crash", icon: Flame, badge: "Classic", group: "originals", trend: 1,
     description: "Watch the multiplier climb. Cash out before it crashes.", poster: "from-orange-500 to-rose-700" },
   { href: "/games/mines", label: "Mines", icon: Grid2x2, badge: "Strategy", group: "originals", trend: 2,
     description: "Reveal tiles on a 5×5 grid. Avoid the mines. Cash out any time.", poster: "from-emerald-500 to-teal-800" },

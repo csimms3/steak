@@ -9,6 +9,11 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    env:
+      # prisma.config.ts validates DATABASE_URL eagerly at load time, even for
+      # steps that never open a connection (generate, typecheck). No real DB
+      # needed here — `prisma generate` only reads schema.prisma to produce types.
+      DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci?schema=public"
     steps:
       - uses: actions/checkout@v4
 

@@ -14,8 +14,18 @@ enum Role {
 
 enum GameType {
   dice
-  mines
+  limbo
+  wheel
+  flip
+  keno
+  diamonds
   plinko
+  mines
+  hilo
+  dragon_tower
+  blackjack
+  video_poker
+  crash
 }
 
 model User {
@@ -23,13 +33,15 @@ model User {
   username     String        @unique
   email        String        @unique
   passwordHash String
-  balance      BigInt        @default(0)
+  balance      BigInt        @default(100000)
   role         Role          @default(player)
   createdAt    DateTime      @default(now())
   gameSessions GameSession[]
-  crashBets    CrashBet[]
+  gameRounds   GameRound[]
 }
 
+// One row per resolved bet — stateless games write this immediately;
+// stateful games write it once, at the terminal event (loss or cashout).
 model GameSession {
   id             String   @id @default(uuid())
   userId         String
@@ -48,34 +60,26 @@ model GameSession {
   @@index([userId, createdAt(sort: Desc)])
 }
 
-model CrashRound {
-  id             String     @id @default(uuid())
-  crashPoint     Float
-  serverSeed     String
-  serverSeedHash String
-  startedAt      DateTime   @default(now())
-  endedAt        DateTime?
-  bets           CrashBet[]
-}
+// Server-side storage for an in-progress stateful game's secret data
+// (mine positions, dragon positions, dealt cards, deck order, etc).
+// Authenticated play uses this instead of the client-visible base64 blob,
+// so secrets can't be read or tampered with client-side. Row is deleted
+// on terminal resolution (loss or cashout) — no TTL needed.
+model GameRound {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  game      GameType
+  betAmount BigInt
+  payload   Json
+  createdAt DateTime @default(now())
 
-model CrashBet {
-  id           String     @id @default(uuid())
-  crashRoundId String
-  crashRound   CrashRound @relation(fields: [crashRoundId], references: [id])
-  userId       String
-  user         User       @relation(fields: [userId], references: [id])
-  betAmount    BigInt
-  cashedOutAt  Float?
-  profit       BigInt
-  createdAt    DateTime   @default(now())
-
-  @@index([crashRoundId])
   @@index([userId])
 }
 
 // Single-row settings table — always id = 1
 model Settings {
-  id                    Int      @id @default(1)
-  defaultStartingBalance BigInt  @default(100000)
-  updatedAt             DateTime @updatedAt
+  id                     Int      @id @default(1)
+  defaultStartingBalance BigInt   @default(100000)
+  updatedAt              DateTime @updatedAt
 }

@@ -82,10 +82,10 @@ None. No payment processors, no third-party game providers, no analytics SDKs. D
 
 ## Deployment
 
-- **App**: Vercel (native Next.js support, deploys from `main` on push).
-- **Database**: managed Postgres — Azure Database for PostgreSQL Flexible Server in this deployment, but any Postgres 16-compatible host works; nothing here is Azure-specific beyond the connection string.
+- **App**: Heroku, deployed as a container — a multi-stage `Dockerfile` builds the Next.js app (`output: "standalone"` for a lean runtime image) and pushes to Heroku's container registry. Deploys from `main` on push.
+- **Database**: Heroku Postgres (add-on), which auto-injects `DATABASE_URL` as a config var — no manual connection-string wiring or cross-cloud firewall rules. Nothing here is Heroku-specific beyond that convenience; any Postgres 16-compatible host works.
 - **CI**: GitHub Actions — lint, typecheck, test on every push and PR (`.github/workflows/ci.yml`).
-- **Local dev**: `docker-compose.yml` runs Postgres only (no app/WS services — the app runs directly via `npm run dev`).
+- **Local dev**: `docker-compose.yml` runs Postgres only (the app runs directly via `npm run dev`); the same `Dockerfile` used for the Heroku deploy can build and run the whole stack locally too.
 
 ## Architecture Decision Records
 

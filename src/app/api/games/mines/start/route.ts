@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
       throw err;
     }
     const token = await createRound(session.user.id, "mines", BigInt(betAmount), {
-      serverSeed, serverSeedHash, clientSeed, mineCount, minePositions, betAmount,
+      serverSeed, serverSeedHash, clientSeed, mineCount, minePositions, betAmount, revealedTiles: [],
     });
     return NextResponse.json({ token, serverSeedHash, clientSeed, mineCount, gridSize: 25, balance });
   }

@@ -21,6 +21,11 @@ interface MinesPayload {
   mineCount: number;
   minePositions: number[];
   betAmount: number;
+  // Tiles revealed so far, server-tracked. Authenticated play must use this —
+  // not the client-supplied revealedCount — as the source of truth for the
+  // payout multiplier; otherwise a client could claim any revealedCount at
+  // cashout time for a payout it never actually earned.
+  revealedTiles: number[];
 }
 
 export async function POST(req: NextRequest) {
@@ -51,6 +56,18 @@ export async function POST(req: NextRequest) {
   }
 
   const { serverSeed, serverSeedHash, clientSeed, minePositions, mineCount, betAmount } = gameState;
+
+  // Authenticated play tracks revealed tiles server-side (gameState.revealedTiles);
+  // a client can't inflate its count by replaying an already-safe tileIndex or by
+  // sending a bogus revealedCount. Guest play has no persisted round to check
+  // against, so it keeps trusting the client-supplied revealedCount as before —
+  // an existing, documented limitation with no real balance at stake.
+  if (token && gameState.revealedTiles.includes(tileIndex)) {
+    await releaseRound(token, gameState);
+    return NextResponse.json({ error: "Tile already revealed" }, { status: 400 });
+  }
+
+  const serverRevealedCount = token ? gameState.revealedTiles.length : revealedCount;
   const hit = isMine(tileIndex, minePositions);
 
   if (hit) {
@@ -68,7 +85,7 @@ export async function POST(req: NextRequest) {
           serverSeedHash,
           clientSeed,
           nonce: 0,
-          outcome: { minePositions, mineCount, tileIndex, revealedCount },
+          outcome: { minePositions, mineCount, tileIndex, revealedCount: serverRevealedCount },
           reserved: true,
         })
       );
@@ -84,11 +101,11 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const newRevealedCount = revealedCount + 1;
+  const newRevealedCount = serverRevealedCount + 1;
   const multiplier = getMinesMultiplier(mineCount, newRevealedCount);
 
   if (token) {
-    await releaseRound(token, gameState);
+    await releaseRound(token, { ...gameState, revealedTiles: [...gameState.revealedTiles, tileIndex] });
   }
 
   return NextResponse.json({

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getMinesMultiplier } from "@/lib/game-engine";
 import { auth } from "@/auth";
 import { settleBet } from "@/lib/game-balance";
-import { claimRound, resolveRound } from "@/lib/game-engine/round-store";
+import { claimRound, releaseRound, resolveRound } from "@/lib/game-engine/round-store";
 
 const schema = z
   .object({
@@ -20,6 +20,8 @@ interface MinesPayload {
   mineCount: number;
   minePositions: number[];
   betAmount: number;
+  // Server-tracked, see mines/reveal/route.ts — authoritative for authenticated play.
+  revealedTiles: number[];
 }
 
 export async function POST(req: NextRequest) {
@@ -28,8 +30,6 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
-
-  const { revealedCount } = parsed.data;
 
   let gameState: MinesPayload;
   let token: string | undefined;
@@ -47,6 +47,15 @@ export async function POST(req: NextRequest) {
     } catch {
       return NextResponse.json({ error: "Invalid state" }, { status: 400 });
     }
+  }
+
+  // Authenticated play uses the server-tracked reveal count, never the
+  // client-supplied one — otherwise a client could cash out immediately after
+  // starting, claiming any revealedCount, for a payout it never earned.
+  const revealedCount = token ? gameState.revealedTiles.length : parsed.data.revealedCount;
+  if (token && revealedCount < 1) {
+    await releaseRound(token, gameState);
+    return NextResponse.json({ error: "No tiles revealed yet" }, { status: 400 });
   }
 
   const { serverSeed, serverSeedHash, clientSeed, mineCount, minePositions, betAmount } = gameState;

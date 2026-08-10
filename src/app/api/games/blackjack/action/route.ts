@@ -3,7 +3,7 @@ import { z } from "zod";
 import { blackjackAction, type BlackjackState } from "@/lib/game-engine";
 import { auth } from "@/auth";
 import { reserveBet, settleBet, InsufficientBalanceError } from "@/lib/game-balance";
-import { loadRound, updateRound, resolveRound, toJsonValue } from "@/lib/game-engine/round-store";
+import { claimRound, releaseRound, resolveRound, toJsonValue } from "@/lib/game-engine/round-store";
 
 type BlackjackRoundPayload = BlackjackState & { serverSeedHash: string; totalReserved: number };
 
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   const token = parsed.data.token;
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  const round = await loadRound<BlackjackRoundPayload>(token, session.user.id);
+  const round = await claimRound<BlackjackRoundPayload>(token, session.user.id);
   if (!round) return NextResponse.json({ error: "Round not found" }, { status: 404 });
 
   // Double and split both add one more of the current hand's bet to total
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
 
   if (result.stage === "player") {
     const newPayload: BlackjackState = JSON.parse(Buffer.from(result.state!, "base64").toString());
-    await updateRound(token, { ...newPayload, serverSeedHash: round.payload.serverSeedHash, totalReserved });
+    await releaseRound(token, { ...newPayload, serverSeedHash: round.payload.serverSeedHash, totalReserved });
     return NextResponse.json({ ...result, state: undefined, token });
   }
 

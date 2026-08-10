@@ -10,7 +10,7 @@ import {
 } from "@/lib/game-engine";
 import { auth } from "@/auth";
 import { reserveBet, settleBet, InsufficientBalanceError } from "@/lib/game-balance";
-import { createRound, loadRound, resolveRound } from "@/lib/game-engine/round-store";
+import { createRound, claimRound, resolveRound } from "@/lib/game-engine/round-store";
 
 const startSchema = z.object({ action: z.literal("start"), betAmount: z.number().int().min(100), clientSeed: z.string().optional() });
 const cashoutSchema = z.object({
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
     const token = parsed.data.token;
     const session = await auth();
     if (!session?.user?.id) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-    const round = await loadRound<CrashRoundPayload>(token, session.user.id);
+    const round = await claimRound<CrashRoundPayload>(token, session.user.id);
     if (!round) return NextResponse.json({ error: "Round not found" }, { status: 404 });
 
     const { serverSeed, serverSeedHash, clientSeed, betAmount, crashPoint } = round.payload;

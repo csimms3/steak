@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getMinesMultiplier } from "@/lib/game-engine";
 import { auth } from "@/auth";
 import { settleBet } from "@/lib/game-balance";
-import { loadRound, resolveRound } from "@/lib/game-engine/round-store";
+import { claimRound, resolveRound } from "@/lib/game-engine/round-store";
 
 const schema = z
   .object({
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
   if (parsed.data.token) {
     const session = await auth();
     if (!session?.user?.id) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-    const round = await loadRound<MinesPayload>(parsed.data.token, session.user.id);
+    const round = await claimRound<MinesPayload>(parsed.data.token, session.user.id);
     if (!round) return NextResponse.json({ error: "Round not found" }, { status: 404 });
     gameState = round.payload;
     token = parsed.data.token;

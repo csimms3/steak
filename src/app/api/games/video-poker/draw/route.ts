@@ -3,7 +3,7 @@ import { z } from "zod";
 import { videoPokerDraw, type VideoPokerState } from "@/lib/game-engine";
 import { auth } from "@/auth";
 import { settleBet } from "@/lib/game-balance";
-import { loadRound, resolveRound, toJsonValue } from "@/lib/game-engine/round-store";
+import { claimRound, resolveRound, toJsonValue } from "@/lib/game-engine/round-store";
 
 type VideoPokerRoundPayload = VideoPokerState & { serverSeedHash: string };
 
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   const token = parsed.data.token;
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  const round = await loadRound<VideoPokerRoundPayload>(token, session.user.id);
+  const round = await claimRound<VideoPokerRoundPayload>(token, session.user.id);
   if (!round) return NextResponse.json({ error: "Round not found" }, { status: 404 });
 
   const encoded = Buffer.from(JSON.stringify(round.payload)).toString("base64");

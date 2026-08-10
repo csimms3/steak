@@ -34,18 +34,39 @@ export async function createRound(
   return round.id;
 }
 
-export async function loadRound<T>(
+/**
+ * Atomically claims a round for exclusive processing: the request that wins
+ * the race to flip claimedAt from null to now proceeds; a concurrent request
+ * for the same token gets null back and must not act on the round. Without
+ * this, two concurrent requests carrying the same token could both read the
+ * round before either mutates it — e.g. both settle a cashout, double-paying
+ * the same bet. Pair every claim with releaseRound (round continues) or
+ * resolveRound (round is terminal).
+ */
+export async function claimRound<T>(
   token: string,
   userId: string
 ): Promise<{ betAmount: bigint; payload: T; createdAt: Date } | null> {
-  const round = await prisma.gameRound.findUnique({ where: { id: token } });
-  if (!round || round.userId !== userId) return null;
-  return { betAmount: round.betAmount, payload: round.payload as T, createdAt: round.createdAt };
+  return prisma.$transaction(async (tx) => {
+    const round = await tx.gameRound.findUnique({ where: { id: token } });
+    if (!round || round.userId !== userId) return null;
+
+    const claim = await tx.gameRound.updateMany({
+      where: { id: token, claimedAt: null },
+      data: { claimedAt: new Date() },
+    });
+    if (claim.count === 0) return null;
+
+    return { betAmount: round.betAmount, payload: round.payload as T, createdAt: round.createdAt };
+  });
 }
 
-/** For games whose secret state evolves each step (e.g. Hilo's position/multiplier). */
-export async function updateRound(token: string, payload: unknown): Promise<void> {
-  await prisma.gameRound.update({ where: { id: token }, data: { payload: toJsonValue(payload) } });
+/** Saves a claimed round's evolved payload and releases the claim so the next request can act on it. */
+export async function releaseRound(token: string, payload: unknown): Promise<void> {
+  await prisma.gameRound.update({
+    where: { id: token },
+    data: { payload: toJsonValue(payload), claimedAt: null },
+  });
 }
 
 export async function resolveRound(token: string): Promise<void> {

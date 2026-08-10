@@ -66,13 +66,18 @@ model GameSession {
 // so secrets can't be read or tampered with client-side. Row is deleted
 // on terminal resolution (loss or cashout) — no TTL needed.
 model GameRound {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
   game      GameType
   betAmount BigInt
   payload   Json
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
+  // Set atomically (guarded UPDATE ... WHERE claimedAt IS NULL) by whichever
+  // request wins the race to process this round, so a concurrent duplicate
+  // request can't also settle/mutate it. Cleared on release for rounds that
+  // continue; the row is deleted outright on terminal resolution.
+  claimedAt DateTime?
 
   @@index([userId])
 }

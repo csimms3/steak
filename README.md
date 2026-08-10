@@ -2,7 +2,7 @@
 
 > **Play money only. No real wagering, no real currency, no cash-out.** Steak is a social casino built purely for entertainment.
 
-A play-money social casino with the energy of Stake.com — 15 provably fair games, a custom HMAC-SHA256 RNG engine, and real accounts with server-persisted balances, built on Next.js and Postgres.
+A play-money social casino with the energy of Stake.com — 13 provably fair games, a custom HMAC-SHA256 RNG engine, and real accounts with server-persisted balances, built on Next.js and Postgres.
 
 **[Live demo](TODO: add after deploy)** · Register an account or just play as a guest — both work, see [How balance works](#how-balance-works) below.
 
@@ -10,10 +10,10 @@ A play-money social casino with the energy of Stake.com — 15 provably fair gam
 
 ## What's here
 
-- **15 games**: Dice, Limbo, Wheel, Flip, Keno, Diamonds, Plinko, Mines, Hilo, Dragon Tower, Blackjack, Video Poker, Crash — each with its own provably-fair engine and unit-tested payout math (114 tests).
+- **13 games**: Dice, Limbo, Wheel, Flip, Keno, Diamonds, Plinko, Mines, Hilo, Dragon Tower, Blackjack, Video Poker, Crash — each with its own provably-fair engine and unit-tested payout math (114 tests).
 - **Provably fair by design**: every bet commits to `SHA256(serverSeed)` before resolving and reveals `serverSeed` after, so any outcome is independently verifiable. See [`src/lib/game-engine/`](src/lib/game-engine/).
 - **Real accounts, optional**: register and your balance, bet history, and game state persist server-side in Postgres. Skip it and play as a guest — balance lives in `localStorage` instead, same games, same math, nothing else changes.
-- **Server-authoritative money for real accounts**: once you're logged in, the server — not the client — decides your balance. Every bet is a single atomic database transaction; a stateful game's secret data (mine positions, dealt cards, the crash point) lives server-side in a `GameRound` row instead of a client-visible blob, so it can't be read or tampered with mid-round. Details in [`docs/architecture.md`](docs/architecture.md).
+- **Server-authoritative money for real accounts**: once you're logged in, the server — not the client — decides your balance. Every bet is a single atomic database transaction; a stateful game's secret data (mine positions, dealt cards, the crash point) lives server-side in a `GameRound` row instead of a client-visible blob, so it can't be read or tampered with mid-round — with one necessary exception: Crash still sends `crashPoint` to the client at round start, since its countdown runs as a local client-side animation. Details in [`docs/architecture.md`](docs/architecture.md).
 
 ## Quick Start
 

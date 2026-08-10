@@ -2,7 +2,7 @@
 
 ## System Overview
 
-Steak is a Next.js 15 (App Router) application with no separate backend process — every game resolves through a Next.js API route, and the same route handles both an unauthenticated guest and a logged-in user. There is no WebSocket server and no Redis; those appeared in an earlier planning pass but were never built, and the plan changed (see ADR-001).
+Steak is a Next.js 16 (App Router) application with no separate backend process — every game resolves through a Next.js API route, and the same route handles both an unauthenticated guest and a logged-in user. There is no WebSocket server and no Redis; those appeared in an earlier planning pass but were never built, and the plan changed (see ADR-001).
 
 The app runs in two balance modes simultaneously, chosen per-request by whether a next-auth session exists:
 
@@ -15,7 +15,7 @@ Every game page and API route supports both modes without a fork in the game log
 
 | Component | Responsibility | Technology |
 |---|---|---|
-| Web App | UI, routing, auth, all game API routes | Next.js 15 + TypeScript, App Router |
+| Web App | UI, routing, auth, all game API routes | Next.js 16 + TypeScript, App Router |
 | Database | Users, balances, bet history, in-progress round secrets | PostgreSQL 16 + Prisma ORM |
 | Auth | Credentials login, JWT sessions | NextAuth.js (Auth.js) v5 |
 | Game Engine | Provably fair RNG, outcome computation for all 13 games | Shared TypeScript module (`src/lib/game-engine/`) |
@@ -82,10 +82,10 @@ None. No payment processors, no third-party game providers, no analytics SDKs. D
 
 ## Deployment
 
-- **App**: Heroku, deployed as a container — a multi-stage `Dockerfile` builds the Next.js app (`output: "standalone"` for a lean runtime image) and pushes to Heroku's container registry. Deploys from `main` on push.
-- **Database**: Heroku Postgres (add-on), which auto-injects `DATABASE_URL` as a config var — no manual connection-string wiring or cross-cloud firewall rules. Nothing here is Heroku-specific beyond that convenience; any Postgres 16-compatible host works.
+- **App (planned)**: Heroku, deployed as a container — a multi-stage `Dockerfile` (not yet written) will build the Next.js app (`output: "standalone"` for a lean runtime image) and push to Heroku's container registry, deploying from `main` on push. Not live yet.
+- **Database (planned)**: Heroku Postgres (add-on), which auto-injects `DATABASE_URL` as a config var — no manual connection-string wiring or cross-cloud firewall rules. Nothing here is Heroku-specific beyond that convenience; any Postgres 16-compatible host works.
 - **CI**: GitHub Actions — lint, typecheck, test on every push and PR (`.github/workflows/ci.yml`).
-- **Local dev**: `docker-compose.yml` runs Postgres only (the app runs directly via `npm run dev`); the same `Dockerfile` used for the Heroku deploy can build and run the whole stack locally too.
+- **Local dev**: `docker-compose.yml` runs Postgres only today (the app runs directly via `npm run dev`); once the Dockerfile above exists, it'll be able to build and run the whole stack locally too.
 
 ## Architecture Decision Records
 

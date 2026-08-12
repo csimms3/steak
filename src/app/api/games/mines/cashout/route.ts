@@ -52,7 +52,8 @@ export async function POST(req: NextRequest) {
   // Authenticated play uses the server-tracked reveal count, never the
   // client-supplied one — otherwise a client could cash out immediately after
   // starting, claiming any revealedCount, for a payout it never earned.
-  const revealedCount = token ? gameState.revealedTiles.length : parsed.data.revealedCount;
+  // (Rounds created before revealedTiles existed default to zero reveals.)
+  const revealedCount = token ? (gameState.revealedTiles ?? []).length : parsed.data.revealedCount;
   if (token && revealedCount < 1) {
     await releaseRound(token, gameState);
     return NextResponse.json({ error: "No tiles revealed yet" }, { status: 400 });

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { hiloCashout, type HiloState } from "@/lib/game-engine";
 import { auth } from "@/auth";
 import { settleBet } from "@/lib/game-balance";
-import { claimRound, resolveRound } from "@/lib/game-engine/round-store";
+import { claimRound, releaseRound, resolveRound } from "@/lib/game-engine/round-store";
 
 type HiloRoundPayload = HiloState & { serverSeedHash: string };
 
@@ -32,7 +32,12 @@ export async function POST(req: NextRequest) {
 
   const encoded = Buffer.from(JSON.stringify(round.payload)).toString("base64");
   const result = hiloCashout(encoded);
-  if ("error" in result) return NextResponse.json({ error: result.error }, { status: 400 });
+  if ("error" in result) {
+    // Non-terminal error (e.g. nothing to cashout yet) — release the claim so
+    // the round stays playable instead of being stuck claimed forever.
+    await releaseRound(token, round.payload);
+    return NextResponse.json({ error: result.error }, { status: 400 });
+  }
 
   const balance = Number(
     await settleBet({

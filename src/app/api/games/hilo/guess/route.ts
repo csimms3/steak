@@ -39,7 +39,12 @@ export async function POST(req: NextRequest) {
 
   const encoded = Buffer.from(JSON.stringify(round.payload)).toString("base64");
   const result = hiloGuess(encoded, parsed.data.guess);
-  if ("error" in result) return NextResponse.json({ error: result.error }, { status: 400 });
+  if ("error" in result) {
+    // Non-terminal error (e.g. deck exhausted) — release the claim so the
+    // round stays playable (cashout) instead of being stuck claimed forever.
+    await releaseRound(token, round.payload);
+    return NextResponse.json({ error: result.error }, { status: 400 });
+  }
 
   if (result.state) {
     // Correct guess — round continues, persist the new position/multiplier.

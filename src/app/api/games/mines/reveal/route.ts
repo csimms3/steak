@@ -62,12 +62,16 @@ export async function POST(req: NextRequest) {
   // sending a bogus revealedCount. Guest play has no persisted round to check
   // against, so it keeps trusting the client-supplied revealedCount as before —
   // an existing, documented limitation with no real balance at stake.
-  if (token && gameState.revealedTiles.includes(tileIndex)) {
+  // Rounds created before revealedTiles existed (pre-this-fix deploys) have no
+  // such key in their persisted payload — treat them as zero reveals rather
+  // than crashing on undefined.
+  const revealedTiles = gameState.revealedTiles ?? [];
+  if (token && revealedTiles.includes(tileIndex)) {
     await releaseRound(token, gameState);
     return NextResponse.json({ error: "Tile already revealed" }, { status: 400 });
   }
 
-  const serverRevealedCount = token ? gameState.revealedTiles.length : revealedCount;
+  const serverRevealedCount = token ? revealedTiles.length : revealedCount;
   const hit = isMine(tileIndex, minePositions);
 
   if (hit) {
@@ -105,7 +109,7 @@ export async function POST(req: NextRequest) {
   const multiplier = getMinesMultiplier(mineCount, newRevealedCount);
 
   if (token) {
-    await releaseRound(token, { ...gameState, revealedTiles: [...gameState.revealedTiles, tileIndex] });
+    await releaseRound(token, { ...gameState, revealedTiles: [...revealedTiles, tileIndex] });
   }
 
   return NextResponse.json({

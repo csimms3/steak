@@ -36,7 +36,12 @@ export async function POST(req: NextRequest) {
 
   const encoded = Buffer.from(JSON.stringify(round.payload)).toString("base64");
   const result = dragonTowerClimb(encoded, parsed.data.col);
-  if ("error" in result) return NextResponse.json({ error: result.error }, { status: 400 });
+  if ("error" in result) {
+    // Non-terminal error — release the claim so the round stays playable
+    // instead of being stuck claimed forever.
+    await releaseRound(token, round.payload);
+    return NextResponse.json({ error: result.error }, { status: 400 });
+  }
 
   // Still climbing — safe, tower not fully cleared.
   if (!result.cleared && result.safe) {

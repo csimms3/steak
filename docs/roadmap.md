@@ -42,7 +42,7 @@
 
 ## v0.3.0 — Game Library Expansion
 
-**Goal**: Grow from 4 games to a full Stake-style library, built in tiers from simplest to most complex on the mock-balance foundation that existed at the time.
+**Goal**: Grow from 4 games to a full game library, built in tiers from simplest to most complex on the mock-balance foundation that existed at the time.
 **Status**: Partially done — 9 of the 14 planned games shipped.
 
 | Tier | Games | Status |
@@ -102,9 +102,10 @@ The remaining 5 games (Roulette, Baccarat, Cases, Scratch, Slots) are a clean co
 
 ## Backlog (v1.x+)
 
+- **Provably fair for every game: per-player committed seed pair.** Today only the 6 stateful games commit before the outcome, while the 7 stateless ones reveal the hash and the seed in the same response as the result (see ADR-003 in `docs/architecture.md`). Scope: a seed-pair record per user (`serverSeed`, `clientSeed`, `nonce`); `GET` for the current `SHA256(serverSeed)`; stateless routes consume the active pair and increment the nonce instead of generating a fresh seed per bet; a rotate endpoint reveals the old seed and commits a new one; `/history` links each bet to its pair. Guest mode needs a decision (session-scoped pair, or keep the current behaviour and label it)
 - Roulette, Baccarat, Cases, Scratch, Slots (remainder of v0.3.0's original 14)
 - Real-time multiplayer Crash (shared round, live broadcast) — the one gap v0.4.0's fix doesn't fully close
-- Admin settings panel (wire up the existing but unused `Settings` model)
+- Bind the starting balance to the account: register reads it from the existing but unused `Settings` model instead of the hardcoded default and the client-supplied `startingBalance`
 - Referral codes and bonus chips system
 - Customizable player profile (avatar, bio)
 - In-game chat (lobby-level, not per-game)

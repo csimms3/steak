@@ -5,7 +5,7 @@ const HOUSE_EDGE = 0.01; // 1%
 /**
  * Derives the crash point from a provably fair outcome.
  *
- * Formula (standard Stake-style):
+ * Formula (the standard crash-game formula):
  *   e = outcome (float in [0, 1))
  *   crashPoint = max(1.00, (1 - houseEdge) / (1 - e))
  *

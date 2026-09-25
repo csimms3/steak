@@ -5,7 +5,7 @@ export type PlinkoRisk = "low" | "medium" | "high";
 /**
  * Multiplier tables per row count per risk level.
  * Values are symmetric — index from left or right.
- * Source: standard Stake Plinko payout tables.
+ * Source: the standard industry Plinko payout tables.
  */
 const MULTIPLIERS: Record<PlinkoRisk, Record<number, number[]>> = {
   low: {

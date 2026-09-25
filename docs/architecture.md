@@ -111,8 +111,12 @@ None. No payment processors, no third-party game providers, no analytics SDKs. D
 
 **Status**: Accepted
 **Context**: Casino games — even play-money ones — should be verifiably fair. The industry-standard approach is an HMAC-SHA256 seed chain.
-**Decision**: Every bet derives its outcome from `HMAC-SHA256(serverSeed, clientSeed:nonce)`. The server commits to `SHA256(serverSeed)` before the bet resolves and reveals `serverSeed` after, so any player can independently recompute and verify the outcome.
-**Consequences**: Small implementation overhead in the game engine (`src/lib/game-engine/rng.ts`), verifiable fairness as a real, checkable property rather than a claim.
+**Decision**: Every bet derives its outcome from `HMAC-SHA256(serverSeed, clientSeed:nonce)`. The server returns `SHA256(serverSeed)` and later reveals `serverSeed`, so any player can recompute the outcome.
+**Consequences**: Small implementation overhead in the game engine (`src/lib/game-engine/rng.ts`). Commit timing is not uniform, and only half the library gets a real guarantee:
+- **Stateful games (6: Mines, Hilo, Dragon Tower, Blackjack, Video Poker, Crash)**: the hash is returned by `start`, and the seed is revealed at cashout/settle on a later request. The server is bound before the round plays out, so it cannot pick a favourable seed.
+- **Stateless games (7: Dice, Limbo, Flip, Keno, Wheel, Diamonds, Plinko)**: the hash, the seed and the result all come back in one response. The outcome is recomputable, but nothing binds the server before it knows the bet, so it could grind seeds. The hash proves nothing here.
+
+The fix is a per-player active seed pair (see the roadmap backlog): publish the hash up front, increment the nonce per bet, reveal on rotation. That puts all 13 games under the stateful guarantee.
 
 ---
 

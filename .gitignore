@@ -11,3 +11,9 @@ tsconfig.tsbuildinfo
 .claude/
 .cursor/
 
+
+# Local env overrides (Next.js loads .env*.local) — may hold real secrets
+.env*.local
+
+# Local tool state
+.freebuff/

@@ -20,7 +20,7 @@ interface StartResponse {
 interface ClimbResponse {
   safe: boolean; dragonCols: number[]; pickedCol: number;
   multiplier: number; currentProfit: number; profit: number;
-  state: string | null; token?: string; serverSeed: string | null; cleared: boolean; balance?: number;
+  state: string | null; token?: string; serverSeed?: string | null; cleared: boolean; balance?: number;
 }
 interface CashoutResponse {
   multiplier: number; profit: number; serverSeed?: string; allDragonPositions: number[][]; balance?: number;
@@ -149,7 +149,7 @@ export default function DragonTowerPage() {
       if (!data.safe || data.cleared) {
         if (data.balance !== undefined) syncBalance(data.balance); else applyProfit(data.profit);
         setEndProfit(data.profit);
-        setServerSeed(data.serverSeed);
+        setServerSeed(data.serverSeed ?? null);
         setGameState(null);
         setGameToken(null);
         setPhase("over");

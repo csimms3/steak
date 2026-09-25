@@ -11,7 +11,7 @@ import {
 import { auth } from "@/auth";
 import { reserveBet } from "@/lib/game-balance";
 import { createRound, claimRound, settleRound } from "@/lib/game-engine/round-store";
-import { withSeeds, pairFields, payloadSeedFields, playErrorResponse, type SeededPayload } from "@/lib/seeded-play";
+import { withSeeds, pairFields, payloadSeedFields, hideSeed, playErrorResponse, type SeededPayload } from "@/lib/seeded-play";
 
 const startSchema = z.object({ action: z.literal("start"), betAmount: z.number().int().min(100).max(10_000_00), clientSeed: z.string().optional() });
 const cashoutSchema = z.object({
@@ -128,13 +128,14 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({
-      crashPoint,
-      cashedOutAt: result.cashedOutAt,
-      profit: Number(result.profit),
-      win: result.cashedOutAt !== null,
-      // A pair's server seed is revealed only on rotation; pre-seed-pair rounds reveal their own.
-      ...(round.payload.seedPairId ? {} : { serverSeed: round.payload.serverSeed }),
-      clientSeed: round.payload.clientSeed,
+      ...hideSeed(round.payload, {
+        crashPoint,
+        cashedOutAt: result.cashedOutAt,
+        profit: Number(result.profit),
+        win: result.cashedOutAt !== null,
+        serverSeed: round.payload.serverSeed,
+        clientSeed: round.payload.clientSeed,
+      }),
       nonce: round.payload.nonce ?? 0,
       balance,
     });

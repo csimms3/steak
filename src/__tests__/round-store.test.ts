@@ -24,9 +24,13 @@ const gameRoundModel = {
     const round = rounds.get(where.id);
     return round ? { ...round } : null;
   }),
-  updateMany: jest.fn(async ({ where, data }: { where: { id: string; claimedAt: null }; data: { claimedAt: Date } }) => {
+  // claimRound's guarded claim (claimedAt: null), and settleRound's claim
+  // release after a failed settlement (claimedAt: { not: null }).
+  updateMany: jest.fn(async ({ where, data }: { where: { id: string; claimedAt: null | { not: null } }; data: { claimedAt: Date | null } }) => {
     const round = rounds.get(where.id);
-    if (!round || round.claimedAt !== where.claimedAt) return { count: 0 };
+    if (!round) return { count: 0 };
+    const wantClaimed = where.claimedAt !== null;
+    if (wantClaimed ? round.claimedAt === null : round.claimedAt !== null) return { count: 0 };
     round.claimedAt = data.claimedAt;
     return { count: 1 };
   }),
@@ -176,5 +180,26 @@ describe("settleRound", () => {
     await settleRound("r1", params);
     await expect(settleRound("r1", params)).rejects.toBeInstanceOf(RoundGoneError);
     expect(settled).toHaveLength(1);
+  });
+});
+
+describe("settleRound failure", () => {
+  test("releases the claim when the settlement itself fails, so the round isn't stuck", async () => {
+    seedRound({ id: "r1", userId: "u1", betAmount: 10_00n, payload: {}, createdAt: new Date(), claimedAt: null });
+    await claimRound("r1", "u1");
+    userModel.update.mockRejectedValueOnce(new Error("connection reset"));
+
+    await expect(
+      settleRound("r1", {
+        userId: "u1", game: "mines", betAmount: 10_00n, profit: 0n, multiplier: 1,
+        serverSeed: "s", serverSeedHash: "h", clientSeed: "c", nonce: 0, outcome: {}, reserved: true,
+      })
+    ).rejects.toThrow("connection reset");
+    // The in-memory mock doesn't roll back the delete like Postgres would, so
+    // check the release call itself.
+    expect(gameRoundModel.updateMany).toHaveBeenLastCalledWith({
+      where: { id: "r1", claimedAt: { not: null } },
+      data: { claimedAt: null },
+    });
   });
 });

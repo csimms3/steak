@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getMinesMultiplier } from "@/lib/game-engine";
 import { auth } from "@/auth";
 import { claimRound, releaseRound, settleRound } from "@/lib/game-engine/round-store";
-import { payloadSeedFields, playErrorResponse } from "@/lib/seeded-play";
+import { payloadSeedFields, hideSeed, playErrorResponse } from "@/lib/seeded-play";
 
 const schema = z
   .object({
@@ -90,12 +90,7 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({
-    profit,
-    multiplier,
-    minePositions,
-    // A pair's server seed is revealed only on rotation; guest and pre-seed-pair rounds reveal their own.
-    ...(gameState.seedPairId ? {} : { serverSeed }),
-    clientSeed,
+    ...hideSeed(gameState, { profit, multiplier, minePositions, serverSeed, clientSeed }),
     ...(gameState.nonce !== undefined ? { nonce: gameState.nonce } : {}),
     ...(balance !== undefined ? { balance } : {}),
   });

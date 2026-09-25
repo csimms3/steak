@@ -85,13 +85,29 @@ export class RoundGoneError extends Error {
  * claimed (only the claim holder reaches here, and seed rotation only forfeits
  * unclaimed rounds), so the bet can't be settled twice, and a crash between the
  * two steps can't leave a settled round behind, still claimed, blocking rotation.
+ *
+ * If the settlement fails for any other reason (e.g. a transient DB error), the
+ * transaction rolls back but the claim, committed earlier by claimRound, would
+ * stay set forever, blocking both play and seed rotation. So the claim is
+ * released before rethrowing, leaving the round playable (and retryable).
  */
 export async function settleRound(token: string, params: SettleParams): Promise<bigint> {
-  return prisma.$transaction(async (tx) => {
-    const gone = await tx.gameRound.deleteMany({ where: { id: token, claimedAt: { not: null } } });
-    if (gone.count !== 1) throw new RoundGoneError();
-    return settleBet(params, tx);
-  });
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const gone = await tx.gameRound.deleteMany({ where: { id: token, claimedAt: { not: null } } });
+      if (gone.count !== 1) throw new RoundGoneError();
+      return settleBet(params, tx);
+    });
+  } catch (err) {
+    if (!(err instanceof RoundGoneError)) {
+      await prisma.gameRound
+        .updateMany({ where: { id: token, claimedAt: { not: null } }, data: { claimedAt: null } })
+        .catch(() => {
+          // Best effort: the original error is the one worth surfacing.
+        });
+    }
+    throw err;
+  }
 }
 
 export async function resolveRound(token: string): Promise<void> {

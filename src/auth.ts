@@ -1,7 +1,13 @@
-import NextAuth from "next-auth";
+import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
+import { loginLimiter, clientIp } from "@/lib/rate-limit";
+
+// Surfaces as `code: "rate_limited"` on the client's signIn() result.
+class RateLimitedSignin extends CredentialsSignin {
+  code = "rate_limited";
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt" },
@@ -12,7 +18,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         username: { label: "Username", type: "text" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
+        if (!loginLimiter.check(clientIp(request.headers)).ok) throw new RateLimitedSignin();
+
         const username = credentials?.username;
         const password = credentials?.password;
         if (typeof username !== "string" || typeof password !== "string") return null;

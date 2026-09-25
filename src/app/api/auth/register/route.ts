@@ -3,6 +3,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { registerLimiter, clientIp } from "@/lib/rate-limit";
 
 const DEFAULT_STARTING_BALANCE = 100000; // $1000.00 in minor units, matches the schema default
 
@@ -14,6 +15,14 @@ const schema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  const limit = registerLimiter.check(clientIp(req.headers));
+  if (!limit.ok) {
+    return NextResponse.json(
+      { error: "Too many registration attempts. Try again later." },
+      { status: 429, headers: { "Retry-After": String(Math.ceil(limit.retryAfterMs / 1000)) } },
+    );
+  }
+
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) {

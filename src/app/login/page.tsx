@@ -24,7 +24,7 @@ export default function LoginPage() {
     const res = await signIn("credentials", { redirect: false, username: username.trim(), password });
     setSubmitting(false);
     if (res?.error) {
-      setError("Invalid username or password.");
+      setError(res.code === "rate_limited" ? "Too many sign-in attempts. Try again in a few minutes." : "Invalid username or password.");
       return;
     }
     router.push("/");

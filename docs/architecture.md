@@ -55,7 +55,7 @@ What the round-store fix *does* close for Crash: the server no longer blindly tr
 - `balance` — `BigInt`, minor units (1 chip = 100 units, matching the client's cents-style display convention — avoids float rounding drift over many bets)
 - `role` — enum `player | admin` (present in the schema; no admin UI is wired up — see `Settings` below)
 - `createdAt`
-- has many `GameSession`, `GameRound`
+- has many `GameSession`, `GameRound`, `SeedPair`
 
 **GameSession** — one row per resolved bet, across all 13 games
 - `id`, `userId` (FK)
@@ -63,6 +63,7 @@ What the round-store fix *does* close for Crash: the server no longer blindly tr
 - `betAmount`, `profit` — `BigInt`
 - `multiplier` — `Float`
 - `serverSeed`, `serverSeedHash`, `clientSeed`, `nonce` — the full seed record for that bet, enough to recompute the outcome
+- `seedPairId` — the `SeedPair` it resolved against (null for bets from before seed pairs). `/history` shows `serverSeed` only once that pair is revealed
 - `outcome` — `Json`, game-specific (revealed tiles, dealt cards, drawn numbers, …)
 - `createdAt`
 - Indexed on `(userId, createdAt desc)` for the history page's pagination
@@ -72,7 +73,13 @@ What the round-store fix *does* close for Crash: the server no longer blindly tr
 - `userId` (FK), `game`, `betAmount`
 - `payload` — `Json`, whatever that game's secret state needs (mine positions, current deck position, the crash point, …)
 - `createdAt` — also used as the timing reference for Crash's elapsed-time cashout validation
-- Deleted on terminal resolution; nothing prunes an abandoned round left mid-game today (a known gap, not yet a problem at this scale)
+- Deleted on terminal resolution, in the same transaction as the settlement (`settleRound`). A round abandoned mid-game stays until the player rotates their seed pair, which forfeits it; otherwise nothing prunes it (a known gap, not yet a problem at this scale)
+
+**SeedPair** — the per-player provably-fair commitment (see ADR-003)
+- `id`, `userId` (FK)
+- `status` — `next` (hash published, no client seed yet) → `active` (bets draw nonces from it) → `revealed` (rotated; seed public). Partial unique indexes allow at most one `next` and one `active` per user
+- `serverSeed`, `serverSeedHash`, `clientSeed` (null while `next`), `nonce` (next nonce to hand out)
+- `createdAt`, `activatedAt`, `revealedAt`
 
 **Settings** — single-row table (`defaultStartingBalance`) left over from an earlier admin-panel plan that was never built. Registration currently uses a request-supplied or hardcoded default instead of reading this row. Kept in the schema since removing it isn't worth the migration churn for an unused, harmless table; wiring it up is a fast-follow if an admin surface is ever built.
 
@@ -109,14 +116,26 @@ None. No payment processors, no third-party game providers, no analytics SDKs. D
 
 ### ADR-003: Provably Fair RNG (HMAC-SHA256 Seed Chain)
 
-**Status**: Accepted
+**Status**: Accepted, revised in v0.5.0 (per-player seed pairs)
 **Context**: Casino games — even play-money ones — should be verifiably fair. The industry-standard approach is an HMAC-SHA256 seed chain.
-**Decision**: Every bet derives its outcome from `HMAC-SHA256(serverSeed, clientSeed:nonce)`, and `serverSeed` is revealed once the bet settles so the player can recompute the result. The server generates a fresh `serverSeed` per bet (or per round) inside the request that receives the bet and the client seed.
-**Consequences**: Small implementation overhead in the game engine (`src/lib/game-engine/rng.ts`). Results can be recomputed, but they are **not yet provably fair**: that needs the server to commit to `SHA256(serverSeed)` before it sees the bet, and no game does. When the seed is revealed depends on the game type:
-- **Stateless games (7: Dice, Limbo, Flip, Keno, Wheel, Diamonds, Plinko)**: the hash, the seed and the result all come back in one response.
-- **Stateful games (6: Mines, Hilo, Dragon Tower, Blackjack, Video Poker, Crash)**: `start` returns the hash, and the seed is revealed at cashout or settle on a later request. That binds the seed for the rest of the round, so it can't adapt to the player's moves. It doesn't stop the server choosing the seed at `start` with the bet in view (for Crash, the whole outcome is fixed at `start`). A Blackjack natural settles in the `start` response, so it doesn't even get the mid-round binding.
+**Decision**: Every account-holder bet derives its outcome from `HMAC-SHA256(serverSeed, "clientSeed:nonce:cursor")` on a **per-player seed pair** (`src/lib/seed-pair.ts`), which fixes the server seed before the bet and before the client seed exist:
+1. **Commit.** The server creates a `next` pair on its own only in requests that carry no bet and no client seed: registration, or `GET /api/user/seeds`. Its SHA256 is published from then on.
+2. **Activate / rotate.** `POST /api/user/seeds/rotate { clientSeed, nextServerSeedHash }` pairs the committed next seed with the player's client seed and makes it `active`. It reveals the previous active pair, forfeits that pair's open rounds as losses, and commits a new next seed. The client must echo the next hash it was shown (409 on mismatch), which proves the commitment was published before the seed was chosen.
+3. **Bet.** Each bet takes the next nonce from the active pair in the same transaction that settles it, or that reserves the bet and creates the round. Multi-float games draw by `cursor` under that one nonce, so consecutive bets share no randomness.
+4. **Verify.** After rotation the revealed seed hashes to the published commitment, and every bet on the pair can be recomputed from `(serverSeed, clientSeed, nonce)`.
 
-The fix is a per-player active seed pair (see the roadmap backlog): publish the hash before any bet, increment the nonce per bet, and reveal the seed on rotation. The client seed is then chosen after the server is committed, which is what makes all 13 games provably fair.
+Guests keep a throwaway per-bet seed revealed with the result: recomputable, **not** provably fair.
+
+**Consequences**:
+- **Rejected shortcuts, each of which would let the server grind outcomes** (found in review on #27):
+  - *Generating the client seed server-side*, even as a default: the server already knows the next seed and could search client seeds against it.
+  - *Creating a pair inside a bet or rotate request*: its hash would be published only after that request's inputs were known. `allocateNonces` never creates a pair (`NoActiveSeedPairError` → 409). `rotateSeedPair` refuses without a previously committed next seed, and creates nothing when it does.
+  - *Accepting a reused client seed*: the server always knows a player's earlier client seeds, so it could grind a future seed against one it expects to be reused. When the next seed is created doesn't help. Rotation rejects any client seed stored on the user's pairs, bets, or open rounds, and the UI generates a fresh one after reading the hash.
+  - *Assuming a row that exists is a published commitment*: hence the echoed `nextServerSeedHash`.
+- **Forfeiting on rotation**: revealing the seed would expose an open round's outcome (mine positions, deck order), and refunding would let a player cancel a round they can see going badly. Forfeits delete the round guarded on `claimedAt IS NULL` before settling it, and any claimed round makes rotation 409, so a round can't be settled twice.
+- **Concurrency**: the nonce increment row-locks the active pair until the bet's transaction ends. Rotation starts by updating that row, so it waits for in-flight bets, and bets that waited on a rotation retry against the new active pair.
+- Results before this change (and guest results) were seeded but not provably fair: their seed was generated in the same request as the bet.
+- Deferred: a `/verify` page that recomputes bets in the browser (the engines use Node's `crypto`, so they'd need a WebCrypto port).
 
 ---
 

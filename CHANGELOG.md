@@ -8,6 +8,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Provably fair outcomes for account holders** — a per-player seed pair (`SeedPair`, `src/lib/seed-pair.ts`). The server commits its next seed at registration, the player activates it with a fresh client seed of their own (echoing the hash they were shown), every bet takes the next nonce, and rotating reveals the seed so all its bets can be checked. Open rounds are forfeited on rotation. `GET /api/user/seeds`, `POST /api/user/seeds/rotate`, Settings → Seed Pair panel, first-bet auto-activation, and seed details in `/history`. Previously every route generated its server seed in the same request as the bet, so no game was provably fair. Guest play still isn't (per-bet seeds revealed with the result)
 - **Real accounts and server-authoritative balance** — registration and login (next-auth v5, Credentials provider, bcrypt, JWT sessions); every one of the 13 games now settles through an atomic database transaction (`src/lib/game-balance.ts`) when logged in, with balance, bet history, and in-progress game state persisted in Postgres. Guest mode (no account) is unchanged — same `localStorage`-backed balance, same games, same math.
 - **Bet history** (`/history`) — paginated, most-recent-first record of every resolved bet, backed by a new `GameSession` table
 - **Secure server-side round state** (`GameRound`) for the 6 stateful games (Mines, Hilo, Dragon Tower, Blackjack, Video Poker, Crash) — authenticated play now keeps secret in-progress data (mine positions, dealt cards, the crash point) server-side instead of in the client-visible base64 blob those games previously relied on for all play. Closes a real integrity gap: the blob was unsigned and readable by anyone who decoded it.
@@ -39,6 +40,8 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Sidebar navigation and Header with balance display + reset
 
 ### Changed
+- RNG message is now `clientSeed:nonce:cursor`: games that need several random numbers draw them by cursor under one nonce instead of `nonce + offset`, so bets on a shared seed can't leak each other's outcomes. Outcomes for the same inputs differ from before
+- Terminal settles of multi-step rounds run in one transaction with the round delete (`settleRound`), so a round can't be settled twice or be left claimed after settling
 - `next` 16.2.7 → 16.3.6 and `next-auth` beta.31 → beta.32, plus `npm audit fix`; clears the critical advisories in `next`, `next-auth` and `@auth/core`
 - CI runs on Node 22 (Node 20 is EOL) and now also runs `next build`; `package.json` declares `"engines": { "node": "22.x" }`
 - `npm run build` runs `prisma generate` first (the generated client is gitignored), and `prisma` / `dotenv` moved to `dependencies` so hosts that prune devDependencies can still run `prisma migrate deploy`

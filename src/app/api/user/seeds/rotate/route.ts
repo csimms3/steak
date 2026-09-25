@@ -5,14 +5,17 @@ import {
   rotateSeedPair,
   RotationBusyError,
   SeedsNotReadyError,
+  NextSeedMismatchError,
   ClientSeedReusedError,
   CLIENT_SEED_PATTERN,
 } from "@/lib/seed-pair";
 
 // The client seed is required: a server-generated one could be ground against
-// the already-known next server seed.
+// the already-known next server seed. The next hash the player was shown is
+// echoed back, proving the commitment was published before the seed was chosen.
 const schema = z.object({
   clientSeed: z.string().regex(CLIENT_SEED_PATTERN, "1–64 letters, digits, _ . or -"),
+  nextServerSeedHash: z.string().regex(/^[0-9a-f]{64}$/, "the next server seed hash you were shown"),
 });
 
 // Activates the committed next server seed with the player's client seed,
@@ -29,7 +32,7 @@ export async function POST(req: NextRequest) {
   try {
     body = JSON.parse(await req.text());
   } catch {
-    return NextResponse.json({ error: "Body must be JSON: { \"clientSeed\": \"...\" }" }, { status: 400 });
+    return NextResponse.json({ error: "Body must be JSON: { \"clientSeed\": \"...\", \"nextServerSeedHash\": \"...\" }" }, { status: 400 });
   }
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
@@ -37,7 +40,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { revealed, state, forfeited } = await rotateSeedPair(session.user.id, parsed.data.clientSeed);
+    const { revealed, state, forfeited } = await rotateSeedPair(session.user.id, parsed.data.clientSeed, parsed.data.nextServerSeedHash);
     return NextResponse.json({
       revealed: revealed && {
         serverSeed: revealed.serverSeed,
@@ -57,7 +60,7 @@ export async function POST(req: NextRequest) {
     if (err instanceof ClientSeedReusedError) {
       return NextResponse.json({ error: err.message }, { status: 400 });
     }
-    if (err instanceof RotationBusyError || err instanceof SeedsNotReadyError) {
+    if (err instanceof RotationBusyError || err instanceof SeedsNotReadyError || err instanceof NextSeedMismatchError) {
       return NextResponse.json({ error: err.message }, { status: 409 });
     }
     throw err;

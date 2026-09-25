@@ -24,8 +24,13 @@ import { settleBet, type Tx } from "@/lib/game-balance";
  * doesn't matter here: the server always knows the player's earlier client
  * seeds, so it could grind any future seed against a seed the player is likely
  * to reuse. What matters is the client seed being new. So rotation rejects
- * client seeds this user has already used on any pair, and clients should
- * generate a fresh random seed after reading the next hash.
+ * client seeds this user has already used (on any pair, bet or open round), and
+ * clients should generate a fresh random seed after reading the next hash.
+ *
+ * The next hash must also have been published to the player before they chose
+ * the client seed; a row that merely exists server-side proves nothing to the
+ * player. Rotation therefore requires the client to send back the next hash it
+ * was shown, and refuses if it doesn't match the committed one.
  */
 
 export class RotationBusyError extends Error {
@@ -40,6 +45,14 @@ export class SeedsNotReadyError extends Error {
   constructor() {
     super("No server seed is committed yet. Load your seeds, then choose a new client seed.");
     this.name = "SeedsNotReadyError";
+  }
+}
+
+/** The client activated against a next hash other than the committed one (stale page, or never fetched). */
+export class NextSeedMismatchError extends Error {
+  constructor() {
+    super("Your next server seed has changed. Reload your seeds and choose a new client seed.");
+    this.name = "NextSeedMismatchError";
   }
 }
 
@@ -155,6 +168,20 @@ export async function allocateNonces(tx: Tx, userId: string, count = 1): Promise
   throw new NoActiveSeedPairError();
 }
 
+/**
+ * Whether the server has already stored this client seed for the user: on a
+ * seed pair, on a settled bet (routes that took a per-request client seed
+ * recorded it there), or in an open round's payload.
+ */
+async function clientSeedSeenBefore(tx: Tx, userId: string, clientSeed: string): Promise<boolean> {
+  const [pair, bet, rounds] = await Promise.all([
+    tx.seedPair.findFirst({ where: { userId, clientSeed }, select: { id: true } }),
+    tx.gameSession.findFirst({ where: { userId, clientSeed }, select: { id: true } }),
+    tx.gameRound.findMany({ where: { userId }, select: { payload: true } }),
+  ]);
+  return !!pair || !!bet || rounds.some((r) => (r.payload as { clientSeed?: unknown } | null)?.clientSeed === clientSeed);
+}
+
 interface ForfeitablePayload {
   nonce?: number;
   seedPairId?: string;
@@ -179,18 +206,25 @@ export interface RotationResult {
  * with a `claimedAt: null` guard before settling it, so a request that claims
  * the round concurrently either wins (and rotation aborts) or finds it gone.
  */
-export async function rotateSeedPair(userId: string, clientSeed: string): Promise<RotationResult> {
+export async function rotateSeedPair(
+  userId: string,
+  clientSeed: string,
+  /** The next server seed hash the player was shown when choosing clientSeed. */
+  expectedNextServerSeedHash: string
+): Promise<RotationResult> {
   if (!CLIENT_SEED_PATTERN.test(clientSeed)) throw new Error("invalid client seed");
 
   return prisma.$transaction(async (tx) => {
     // The next seed must have been committed by an earlier request that carried
     // no client seed. Never create one here: this request's client seed is
     // already known, and the player would likely retry with it.
-    const next = await tx.seedPair.findFirst({ where: { userId, status: "next" }, select: { id: true } });
+    const next = await tx.seedPair.findFirst({
+      where: { userId, status: "next" },
+      select: { id: true, serverSeedHash: true },
+    });
     if (!next) throw new SeedsNotReadyError();
-    if (await tx.seedPair.findFirst({ where: { userId, clientSeed }, select: { id: true } })) {
-      throw new ClientSeedReusedError();
-    }
+    if (next.serverSeedHash !== expectedNextServerSeedHash) throw new NextSeedMismatchError();
+    if (await clientSeedSeenBefore(tx, userId, clientSeed)) throw new ClientSeedReusedError();
 
     const now = new Date();
     let revealed: RotationResult["revealed"] = null;

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { blackjackAction, type BlackjackState } from "@/lib/game-engine";
 import { auth } from "@/auth";
-import { reserveBet, InsufficientBalanceError } from "@/lib/game-balance";
+import { prisma } from "@/lib/db";
+import { reserveBet } from "@/lib/game-balance";
 import { claimRound, releaseRound, settleRound, toJsonValue } from "@/lib/game-engine/round-store";
 import { payloadSeedFields, hideSeed, playErrorResponse } from "@/lib/seeded-play";
 
@@ -53,24 +54,33 @@ export async function POST(req: NextRequest) {
   // balance mid-hand. The action is already validated, and if the reserve
   // fails we release the claim (nothing was persisted) so the player can pick
   // another move instead of losing the round.
-  let totalReserved = round.payload.totalReserved;
-  if (parsed.data.action === "double" || parsed.data.action === "split") {
-    const currentHand = round.payload.hands[round.payload.currentHandIndex];
-    try {
-      await reserveBet(session.user.id, BigInt(currentHand.bet));
-      totalReserved += currentHand.bet;
-    } catch (err) {
-      await releaseRound(token, round.payload);
-      if (err instanceof InsufficientBalanceError) {
-        return NextResponse.json({ error: "Insufficient balance" }, { status: 400 });
-      }
-      throw err;
-    }
-  }
+  // Double and split add one more of the current hand's bet to the exposure.
+  // That extra stake is debited in the SAME transaction as the round change it
+  // pays for (the saved hand state, or the final settlement), never on its own:
+  // otherwise a failure after the debit would revert the round to its
+  // pre-action state with the stake gone, and a retry would debit it again.
+  const extraStake =
+    parsed.data.action === "double" || parsed.data.action === "split"
+      ? round.payload.hands[round.payload.currentHandIndex].bet
+      : 0;
+  const totalReserved = round.payload.totalReserved + extraStake;
+  const userId = session.user.id;
 
   if (result.stage === "player") {
     const newPayload: BlackjackState = JSON.parse(Buffer.from(result.state!, "base64").toString());
-    await releaseRound(token, { ...round.payload, ...newPayload, totalReserved });
+    try {
+      await prisma.$transaction(async (tx) => {
+        if (extraStake > 0) await reserveBet(userId, BigInt(extraStake), tx);
+        await releaseRound(token, { ...round.payload, ...newPayload, totalReserved }, tx);
+      });
+    } catch (err) {
+      // Nothing was committed: unclaim the round in its pre-action state so the
+      // player can pick another move (e.g. after "Insufficient balance").
+      await releaseRound(token, round.payload).catch(() => {});
+      const res = playErrorResponse(err);
+      if (res) return res;
+      throw err;
+    }
     return NextResponse.json({ ...result, state: undefined, token });
   }
 
@@ -78,16 +88,20 @@ export async function POST(req: NextRequest) {
   let balance: number;
   try {
     balance = Number(
-      await settleRound(token, {
-        userId: session.user.id,
-        game: "blackjack",
-        betAmount: BigInt(totalReserved),
-        profit: BigInt(result.profit!),
-        multiplier: 0,
-        ...payloadSeedFields(round.payload),
-        outcome: toJsonValue({ results: result.results, dealerCards: result.dealerCards }),
-        reserved: true,
-      })
+      await settleRound(
+        token,
+        {
+          userId,
+          game: "blackjack",
+          betAmount: BigInt(totalReserved),
+          profit: BigInt(result.profit!),
+          multiplier: 0,
+          ...payloadSeedFields(round.payload),
+          outcome: toJsonValue({ results: result.results, dealerCards: result.dealerCards }),
+          reserved: true,
+        },
+        BigInt(extraStake) // a hand-ending double/split: debited in the settle transaction
+      )
     );
   } catch (err) {
     const res = playErrorResponse(err);

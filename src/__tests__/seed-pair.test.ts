@@ -119,6 +119,7 @@ import {
   RotationBusyError,
   SeedsNotReadyError,
   NoActiveSeedPairError,
+  ClientSeedReusedError,
 } from "@/lib/seed-pair";
 import type { Tx } from "@/lib/game-balance";
 
@@ -159,6 +160,14 @@ describe("getSeedState", () => {
 });
 
 describe("allocateNonces", () => {
+  test("rejects non-positive or fractional counts before touching the pair", async () => {
+    await activate();
+    for (const bad of [0, -1, 1.5]) {
+      await expect(allocateNonces(tx, "u1", bad)).rejects.toBeInstanceOf(RangeError);
+    }
+    expect(pairs.find((p) => p.status === "active")!.nonce).toBe(0);
+  });
+
   test("refuses before activation and never creates a pair", async () => {
     await expect(allocateNonces(tx, "u1")).rejects.toBeInstanceOf(NoActiveSeedPairError);
     expect(pairs).toHaveLength(0);
@@ -178,10 +187,19 @@ describe("allocateNonces", () => {
 });
 
 describe("rotateSeedPair", () => {
-  test("refuses when no next seed was committed by an earlier request, and commits one for the retry", async () => {
+  test("refuses when no next seed was committed by an earlier request, and creates nothing", async () => {
     await expect(rotateSeedPair("u1", "player-seed")).rejects.toBeInstanceOf(SeedsNotReadyError);
-    expect(pairs.map((p) => p.status)).toEqual(["next"]);
-    await expect(rotateSeedPair("u1", "player-seed")).resolves.toMatchObject({ revealed: null });
+    expect(pairs).toHaveLength(0);
+    await getSeedState("u1"); // a plain GET commits the next seed
+    await expect(rotateSeedPair("u1", "fresh-seed")).resolves.toMatchObject({ revealed: null });
+  });
+
+  test("rejects a client seed this user has used before, on any pair", async () => {
+    await activate("seed-a");
+    await expect(rotateSeedPair("u1", "seed-a")).rejects.toBeInstanceOf(ClientSeedReusedError);
+    await rotateSeedPair("u1", "seed-b");
+    await expect(rotateSeedPair("u1", "seed-a")).rejects.toBeInstanceOf(ClientSeedReusedError); // now on a revealed pair
+    await expect(rotateSeedPair("u1", "seed-c")).resolves.toBeDefined();
   });
 
   test("first activation pairs the pre-committed next seed with the player's client seed", async () => {

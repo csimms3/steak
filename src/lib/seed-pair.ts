@@ -18,6 +18,14 @@ import { settleBet, type Tx } from "@/lib/game-balance";
  * generating a client seed server-side (the server could grind it against the
  * known next seed), and creating a pair inside a bet or rotate request (its
  * hash would never have been published before that request's inputs).
+ *
+ * The guarantee also needs the activating client seed to be one the server had
+ * not seen when it committed the next seed. When the next seed is created
+ * doesn't matter here: the server always knows the player's earlier client
+ * seeds, so it could grind any future seed against a seed the player is likely
+ * to reuse. What matters is the client seed being new. So rotation rejects
+ * client seeds this user has already used on any pair, and clients should
+ * generate a fresh random seed after reading the next hash.
  */
 
 export class RotationBusyError extends Error {
@@ -27,11 +35,19 @@ export class RotationBusyError extends Error {
   }
 }
 
-/** Rotation needs a `next` pair committed by an earlier request; one now exists, so retry. */
+/** Rotation needs a `next` pair committed by an earlier request, which GET /api/user/seeds creates. */
 export class SeedsNotReadyError extends Error {
   constructor() {
-    super("Your next server seed was just committed. Review its hash and try again.");
+    super("No server seed is committed yet. Load your seeds, then choose a new client seed.");
     this.name = "SeedsNotReadyError";
+  }
+}
+
+/** The server already knew this client seed, so it could have ground the next server seed against it. */
+export class ClientSeedReusedError extends Error {
+  constructor() {
+    super("You've used this client seed before. Choose a new one.");
+    this.name = "ClientSeedReusedError";
   }
 }
 
@@ -118,6 +134,8 @@ export async function getRevealedPairs(userId: string, take = 10) {
  * retries once against the newly promoted one. Never creates a pair.
  */
 export async function allocateNonces(tx: Tx, userId: string, count = 1): Promise<AllocatedSeeds> {
+  // Zero or negative would hand out an already-used nonce (duplicate outcomes).
+  if (!Number.isInteger(count) || count < 1) throw new RangeError(`nonce count must be a positive integer, got ${count}`);
   for (let attempt = 0; attempt < 2; attempt++) {
     const bumped = await tx.seedPair.updateMany({
       where: { userId, status: "active" },
@@ -164,12 +182,16 @@ export interface RotationResult {
 export async function rotateSeedPair(userId: string, clientSeed: string): Promise<RotationResult> {
   if (!CLIENT_SEED_PATTERN.test(clientSeed)) throw new Error("invalid client seed");
 
-  // The next seed must have been committed by an earlier request. If this is
-  // the first time we've seen the user, commit one now and make them come back.
-  const hadNext = await prisma.$transaction((tx) => ensureNext(tx, userId));
-  if (!hadNext) throw new SeedsNotReadyError();
-
   return prisma.$transaction(async (tx) => {
+    // The next seed must have been committed by an earlier request that carried
+    // no client seed. Never create one here: this request's client seed is
+    // already known, and the player would likely retry with it.
+    const next = await tx.seedPair.findFirst({ where: { userId, status: "next" }, select: { id: true } });
+    if (!next) throw new SeedsNotReadyError();
+    if (await tx.seedPair.findFirst({ where: { userId, clientSeed }, select: { id: true } })) {
+      throw new ClientSeedReusedError();
+    }
+
     const now = new Date();
     let revealed: RotationResult["revealed"] = null;
     let forfeited = 0;
@@ -217,10 +239,13 @@ export async function rotateSeedPair(userId: string, clientSeed: string): Promis
     }
 
     const promoted = await tx.seedPair.updateMany({
-      where: { userId, status: "next" },
+      where: { id: next.id, status: "next" },
       data: { status: "active", clientSeed, activatedAt: now },
     });
     if (promoted.count !== 1) throw new RotationBusyError();
+    // The replacement is created here, after this request's client seed is
+    // known. That's fine: the rule above forbids pairing it with this seed (or
+    // any earlier one), so there's nothing it could be ground against.
     await tx.seedPair.create({ data: { userId, ...nextPairData() } });
 
     return { revealed, state: await readState(tx, userId), forfeited };

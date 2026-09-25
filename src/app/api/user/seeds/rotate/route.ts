@@ -5,6 +5,7 @@ import {
   rotateSeedPair,
   RotationBusyError,
   SeedsNotReadyError,
+  ClientSeedReusedError,
   CLIENT_SEED_PATTERN,
 } from "@/lib/seed-pair";
 
@@ -53,6 +54,9 @@ export async function POST(req: NextRequest) {
       forfeited,
     });
   } catch (err) {
+    if (err instanceof ClientSeedReusedError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
     if (err instanceof RotationBusyError || err instanceof SeedsNotReadyError) {
       return NextResponse.json({ error: err.message }, { status: 409 });
     }

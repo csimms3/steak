@@ -13,7 +13,7 @@ import { playFetch } from "@/lib/seed-client";
 
 interface WheelResponse {
   segmentIndex: number; multiplier: number; profit: number; ring: number[];
-  serverSeed: string; serverSeedHash: string; clientSeed: string; nonce: number;
+  serverSeed?: string; serverSeedHash: string; clientSeed: string; nonce: number;
   balance?: number;
 }
 

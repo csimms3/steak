@@ -14,7 +14,7 @@ import { playFetch } from "@/lib/seed-client";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface StartResponse {
-  state?: string; token?: string; serverSeedHash: string; clientSeed: string;
+  state?: string; token?: string; serverSeedHash: string; clientSeed: string; nonce?: number;
   rows: number; cols: number; step: number; balance?: number;
 }
 interface ClimbResponse {
@@ -23,7 +23,7 @@ interface ClimbResponse {
   state: string | null; token?: string; serverSeed: string | null; cleared: boolean; balance?: number;
 }
 interface CashoutResponse {
-  multiplier: number; profit: number; serverSeed: string; allDragonPositions: number[][]; balance?: number;
+  multiplier: number; profit: number; serverSeed?: string; allDragonPositions: number[][]; balance?: number;
 }
 
 // Row revealed state: what the player picked and where the dragons were
@@ -92,8 +92,10 @@ export default function DragonTowerPage() {
 
   // Fair disclosure
   const [serverSeedHash, setServerSeedHash] = useState("");
+  // The round's own client seed and nonce, from the start response: for a
+  // logged-in player that's the seed pair's, not the local settings seed.
+  const [roundSeed, setRoundSeed] = useState({ clientSeed: "", nonce: 0 });
   const [serverSeed, setServerSeed] = useState<string | null>(null);
-  const [clientSeed, setClientSeed] = useState("");
 
   // Result
   const [endProfit, setEndProfit] = useState<number | null>(null);
@@ -118,8 +120,8 @@ export default function DragonTowerPage() {
       setRowResults(Array(9).fill(null));
       setAllDragonPositions(null);
       setServerSeedHash(data.serverSeedHash);
+      setRoundSeed({ clientSeed: data.clientSeed, nonce: data.nonce ?? 0 });
       setServerSeed(null);
-      setClientSeed(data.clientSeed);
       setEndProfit(null);
       setPhase("playing");
     } finally {
@@ -175,7 +177,7 @@ export default function DragonTowerPage() {
       const data: CashoutResponse = await res.json();
       if (data.balance !== undefined) syncBalance(data.balance); else applyProfit(data.profit);
       setEndProfit(data.profit);
-      setServerSeed(data.serverSeed);
+      setServerSeed(data.serverSeed ?? null);
       setAllDragonPositions(data.allDragonPositions);
       setGameState(null);
       setGameToken(null);
@@ -194,8 +196,8 @@ export default function DragonTowerPage() {
   };
 
   const fair: ProvablyFair | null = serverSeed
-    ? { serverSeed, serverSeedHash, clientSeed, nonce: 0 }
-    : phase !== "idle" ? { serverSeedHash, clientSeed, nonce: 0 } : null;
+    ? { serverSeed, serverSeedHash, clientSeed: roundSeed.clientSeed, nonce: roundSeed.nonce }
+    : phase !== "idle" ? { serverSeedHash, clientSeed: roundSeed.clientSeed, nonce: roundSeed.nonce } : null;
 
   const step = dragonTowerStep(difficulty);
   const cfg = dragonTowerConfig(difficulty);

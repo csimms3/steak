@@ -12,7 +12,7 @@ import { playFetch } from "@/lib/seed-client";
 
 interface LimboResponse {
   result: number; win: boolean; multiplier: number; profit: number;
-  serverSeed: string; serverSeedHash: string; clientSeed: string; nonce: number;
+  serverSeed?: string; serverSeedHash: string; clientSeed: string; nonce: number;
   balance?: number;
 }
 

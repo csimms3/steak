@@ -51,6 +51,15 @@ describe("playFetch", () => {
     expect(rotate.nextServerSeedHash).toBe(NEXT); // the hash it was shown
     expect(rotate.clientSeed).toMatch(/^[0-9a-f]{16}$/);
   });
+  test("returns the original 409 instead of throwing when activation fails", async () => {
+    script = [
+      { url: "/api/games/dice", method: "POST", status: 409, body: { code: "no_active_seed_pair", error: "Choose a client seed before playing." } },
+      { url: "/api/user/seeds", status: 500, body: { error: "db down" } },
+    ];
+    const res = await playFetch("/api/games/dice", bet);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: "no_active_seed_pair" });
+  });
 });
 
 describe("activateSeedPair", () => {

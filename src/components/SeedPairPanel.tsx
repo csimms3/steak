@@ -57,7 +57,11 @@ export function SeedPairPanel() {
       } else {
         setMessage({ tone: "error", text: result.error });
       }
-      // Refresh either way: on a mismatch the next hash changed, and any retry needs a new seed.
+      // Refresh either way: on a mismatch the next hash changed, and any retry
+      // needs a new seed. That includes a seed the player typed themselves: the
+      // server has now seen it (even though it rejected the request), so
+      // re-sending it would pair it with a server seed that may have been
+      // ground against it. A fresh random one replaces it.
       await load();
     } finally {
       setBusy(false);

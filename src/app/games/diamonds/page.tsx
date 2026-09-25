@@ -14,7 +14,7 @@ import { playFetch } from "@/lib/seed-client";
 interface DiamondsResponse {
   picks: number[]; tiles: GemType[]; diamondPositions: number[];
   hits: number; multiplier: number; profit: number;
-  serverSeed: string; serverSeedHash: string; clientSeed: string; nonce: number;
+  serverSeed?: string; serverSeedHash: string; clientSeed: string; nonce: number;
   balance?: number;
 }
 

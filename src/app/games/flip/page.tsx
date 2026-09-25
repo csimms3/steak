@@ -14,7 +14,7 @@ import { playFetch } from "@/lib/seed-client";
 interface FlipResponse {
   flips: Side[]; side: Side; streak: number; targetStreak: number; win: boolean;
   multiplier: number; profit: number;
-  serverSeed: string; serverSeedHash: string; clientSeed: string; nonce: number;
+  serverSeed?: string; serverSeedHash: string; clientSeed: string; nonce: number;
   balance?: number;
 }
 

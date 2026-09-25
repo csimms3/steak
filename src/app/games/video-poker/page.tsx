@@ -13,11 +13,11 @@ import { cn } from "@/lib/cn";
 import { playFetch } from "@/lib/seed-client";
 
 interface DealResponse {
-  hand: Card[]; state?: string; token?: string; serverSeedHash: string; clientSeed: string; balance?: number;
+  hand: Card[]; state?: string; token?: string; serverSeedHash: string; clientSeed: string; nonce?: number; balance?: number;
 }
 interface DrawResponse {
   finalHand: Card[]; category: PokerCategory; label: string;
-  multiplier: number; profit: number; serverSeed: string; balance?: number;
+  multiplier: number; profit: number; serverSeed?: string; balance?: number;
 }
 
 const PAYTABLE: { category: PokerCategory; label: string }[] = [
@@ -48,7 +48,9 @@ export default function VideoPokerPage() {
   const [result, setResult] = useState<DrawResponse | null>(null);
 
   const [serverSeedHash, setServerSeedHash] = useState("");
-  const [clientSeed, setClientSeed] = useState("");
+  // The round's own client seed and nonce, from the start response: for a
+  // logged-in player that's the seed pair's, not the local settings seed.
+  const [roundSeed, setRoundSeed] = useState({ clientSeed: "", nonce: 0 });
 
   const deal = useCallback(async () => {
     if (betAmount > balance || busy) return;
@@ -66,7 +68,7 @@ export default function VideoPokerPage() {
       setGameState(data.state ?? null);
       setGameToken(data.token ?? null);
       setServerSeedHash(data.serverSeedHash);
-      setClientSeed(data.clientSeed);
+      setRoundSeed({ clientSeed: data.clientSeed, nonce: data.nonce ?? 0 });
       setResult(null);
       setPhase("holding");
     } finally {
@@ -103,8 +105,8 @@ export default function VideoPokerPage() {
   const reset = () => { setPhase("idle"); setHand([]); setResult(null); setHolds([false, false, false, false, false]); };
 
   const fair: ProvablyFair | null = result
-    ? { serverSeed: result.serverSeed, serverSeedHash, clientSeed, nonce: 0 }
-    : phase !== "idle" ? { serverSeedHash, clientSeed, nonce: 0 } : null;
+    ? { serverSeed: result.serverSeed, serverSeedHash, clientSeed: roundSeed.clientSeed, nonce: roundSeed.nonce }
+    : phase !== "idle" ? { serverSeedHash, clientSeed: roundSeed.clientSeed, nonce: roundSeed.nonce } : null;
 
   return (
     <GameShell title="Video Poker" subtitle="Jacks or Better · Hold your cards · Draw for the payout"

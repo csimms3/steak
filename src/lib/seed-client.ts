@@ -77,13 +77,21 @@ export async function activateSeedPair(): Promise<void> {
 /**
  * `fetch` for game routes. A logged-in player with no active seed pair gets
  * `409 no_active_seed_pair` on their first bet; this activates one and retries
- * the request once, so the first bet just works.
+ * the request once, so the first bet just works. Retrying is safe: that 409
+ * comes from nonce allocation, before anything is debited or persisted.
+ *
+ * If activation fails, the original 409 is returned rather than thrown, so the
+ * page handles it like any other error response.
  */
 export async function playFetch(input: string, init?: RequestInit): Promise<Response> {
   const res = await fetch(input, init);
   if (res.status !== 409) return res;
   const body = await res.clone().json().catch(() => null);
   if (body?.code !== "no_active_seed_pair") return res;
-  await activateSeedPair();
+  try {
+    await activateSeedPair();
+  } catch {
+    return res;
+  }
   return fetch(input, init);
 }

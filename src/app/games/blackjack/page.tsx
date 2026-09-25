@@ -14,7 +14,7 @@ import { playFetch } from "@/lib/seed-client";
 
 interface StartResponse {
   playerCards: Card[]; dealerUpCard: Card; dealerCards?: Card[];
-  state?: string | null; token?: string; serverSeedHash: string; clientSeed: string;
+  state?: string | null; token?: string; serverSeedHash: string; clientSeed: string; nonce?: number;
   canDouble: boolean; canSplit: boolean; stage: "player" | "done";
   result?: HandResult; profit?: number; serverSeed?: string; balance?: number;
 }
@@ -68,8 +68,10 @@ export default function BlackjackPage() {
   const [totalProfit, setTotalProfit] = useState<number | null>(null);
 
   const [serverSeedHash, setServerSeedHash] = useState("");
+  // The round's own client seed and nonce, from the start response: for a
+  // logged-in player that's the seed pair's, not the local settings seed.
+  const [roundSeed, setRoundSeed] = useState({ clientSeed: "", nonce: 0 });
   const [serverSeed, setServerSeed] = useState<string | null>(null);
-  const [clientSeed, setClientSeed] = useState("");
 
   const deal = useCallback(async () => {
     if (betAmount > balance || busy) return;
@@ -83,7 +85,7 @@ export default function BlackjackPage() {
       const data: StartResponse = await res.json();
       if (data.balance !== undefined) syncBalance(data.balance);
       setServerSeedHash(data.serverSeedHash);
-      setClientSeed(data.clientSeed);
+      setRoundSeed({ clientSeed: data.clientSeed, nonce: data.nonce ?? 0 });
 
       if (data.stage === "done") {
         if (data.balance === undefined) applyProfit(data.profit!);
@@ -92,7 +94,7 @@ export default function BlackjackPage() {
         setHands([{ cards: data.playerCards, bet: betAmount, finished: true, busted: false, doubled: false }]);
         setResults([data.result === "blackjack" ? "blackjack" : data.result!]);
         setTotalProfit(data.profit!);
-        setServerSeed(data.serverSeed!);
+        setServerSeed(data.serverSeed ?? null);
         setGameState(null);
         setGameToken(null);
         setCurrentHandIndex(0);
@@ -137,7 +139,7 @@ export default function BlackjackPage() {
         setDealerHidden(false);
         setResults(data.results!);
         setTotalProfit(data.profit!);
-        setServerSeed(data.serverSeed!);
+        setServerSeed(data.serverSeed ?? null);
         setGameState(null);
         setGameToken(null);
         setPhase("done");
@@ -155,8 +157,8 @@ export default function BlackjackPage() {
   };
 
   const fair: ProvablyFair | null = serverSeed
-    ? { serverSeed, serverSeedHash, clientSeed, nonce: 0 }
-    : phase !== "idle" ? { serverSeedHash, clientSeed, nonce: 0 } : null;
+    ? { serverSeed, serverSeedHash, clientSeed: roundSeed.clientSeed, nonce: roundSeed.nonce }
+    : phase !== "idle" ? { serverSeedHash, clientSeed: roundSeed.clientSeed, nonce: roundSeed.nonce } : null;
 
   const activeHand = hands[currentHandIndex];
 

@@ -12,7 +12,7 @@ import { auth } from "@/auth";
 import { reserveBet, settleBet, InsufficientBalanceError } from "@/lib/game-balance";
 import { createRound, claimRound, resolveRound } from "@/lib/game-engine/round-store";
 
-const startSchema = z.object({ action: z.literal("start"), betAmount: z.number().int().min(100), clientSeed: z.string().optional() });
+const startSchema = z.object({ action: z.literal("start"), betAmount: z.number().int().min(100).max(10_000_00), clientSeed: z.string().optional() });
 const cashoutSchema = z.object({
   action: z.literal("cashout"),
   state: z.string().optional(),

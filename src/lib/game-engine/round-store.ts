@@ -1,5 +1,6 @@
 import { Prisma, GameType } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { settleBet, type SettleParams } from "@/lib/game-balance";
 
 /**
  * Server-side storage for a stateful game's secret in-progress data (mine
@@ -67,6 +68,29 @@ export async function releaseRound(token: string, payload: unknown): Promise<voi
   await prisma.gameRound.update({
     where: { id: token },
     data: { payload: toJsonValue(payload), claimedAt: null },
+  });
+}
+
+/** The round was already settled or forfeited (e.g. by a seed rotation) before this request could settle it. */
+export class RoundGoneError extends Error {
+  constructor() {
+    super("This round has already ended.");
+    this.name = "RoundGoneError";
+  }
+}
+
+/**
+ * Terminal settlement for a claimed round: deletes the round and settles the
+ * bet in ONE transaction. The delete is guarded on the round still being
+ * claimed (only the claim holder reaches here, and seed rotation only forfeits
+ * unclaimed rounds), so the bet can't be settled twice, and a crash between the
+ * two steps can't leave a settled round behind, still claimed, blocking rotation.
+ */
+export async function settleRound(token: string, params: SettleParams): Promise<bigint> {
+  return prisma.$transaction(async (tx) => {
+    const gone = await tx.gameRound.deleteMany({ where: { id: token, claimedAt: { not: null } } });
+    if (gone.count !== 1) throw new RoundGoneError();
+    return settleBet(params, tx);
   });
 }
 

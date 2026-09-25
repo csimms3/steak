@@ -9,8 +9,9 @@ import {
   crashMultiplierAtElapsed,
 } from "@/lib/game-engine";
 import { auth } from "@/auth";
-import { reserveBet, settleBet, InsufficientBalanceError } from "@/lib/game-balance";
-import { createRound, claimRound, resolveRound } from "@/lib/game-engine/round-store";
+import { reserveBet } from "@/lib/game-balance";
+import { createRound, claimRound, settleRound } from "@/lib/game-engine/round-store";
+import { withSeeds, pairFields, payloadSeedFields, playErrorResponse, type SeededPayload } from "@/lib/seeded-play";
 
 const startSchema = z.object({ action: z.literal("start"), betAmount: z.number().int().min(100).max(10_000_00), clientSeed: z.string().optional() });
 const cashoutSchema = z.object({
@@ -23,10 +24,9 @@ const cashoutSchema = z.object({
   .refine((d) => d.bust || d.cashedOutAt !== undefined, "cashedOutAt is required unless bust is true");
 const schema = z.discriminatedUnion("action", [startSchema, cashoutSchema]);
 
-interface CrashRoundPayload {
-  serverSeed: string;
-  serverSeedHash: string;
-  clientSeed: string;
+interface CrashRoundPayload extends Omit<SeededPayload, "nonce"> {
+  /** Absent on rounds started before seed pairs (which always used nonce 0). */
+  nonce?: number;
   betAmount: number;
   crashPoint: number;
 }
@@ -38,31 +38,42 @@ export async function POST(req: NextRequest) {
 
   if (parsed.data.action === "start") {
     const { betAmount, clientSeed: suppliedClient } = parsed.data;
+
+    // Account holders: the crash point comes from the active seed pair, with the
+    // nonce, bet reservation and round creation in one transaction.
+    const session = await auth();
+    if (session?.user?.id) {
+      const userId = session.user.id;
+      try {
+        const { token, seeds, crashPoint, balance } = await withSeeds(userId, 1, async (tx, seeds) => {
+          const crashPoint = getCrashPoint(seeds.serverSeed, seeds.clientSeed, seeds.firstNonce);
+          const balance = await reserveBet(userId, BigInt(betAmount), tx);
+          const token = await createRound(
+            userId, "crash", BigInt(betAmount),
+            { ...pairFields(seeds), betAmount, crashPoint } satisfies CrashRoundPayload,
+            tx
+          );
+          return { token, seeds, crashPoint, balance };
+        });
+        // crashPoint is still sent: the client animates locally with no server
+        // push loop, so it needs the target to run the countdown at all. The
+        // cashout step below is what's actually secured (see crashMultiplierAtElapsed).
+        return NextResponse.json({
+          token, serverSeedHash: seeds.serverSeedHash, clientSeed: seeds.clientSeed, nonce: seeds.firstNonce,
+          crashPoint, balance: Number(balance),
+        });
+      } catch (err) {
+        const res = playErrorResponse(err);
+        if (res) return res;
+        throw err;
+      }
+    }
+
+    // Guest: a throwaway per-round seed in a client-held blob. Not provably fair.
     const serverSeed = generateServerSeed();
     const clientSeed = suppliedClient ?? generateClientSeed();
     const serverSeedHash = hashServerSeed(serverSeed);
     const crashPoint = getCrashPoint(serverSeed, clientSeed, 0);
-
-    const session = await auth();
-    if (session?.user?.id) {
-      let balance: number;
-      try {
-        balance = Number(await reserveBet(session.user.id, BigInt(betAmount)));
-      } catch (err) {
-        if (err instanceof InsufficientBalanceError) {
-          return NextResponse.json({ error: "Insufficient balance" }, { status: 400 });
-        }
-        throw err;
-      }
-      const token = await createRound(session.user.id, "crash", BigInt(betAmount), {
-        serverSeed, serverSeedHash, clientSeed, betAmount, crashPoint,
-      } satisfies CrashRoundPayload);
-      // crashPoint is still sent — the client animates locally with no server
-      // push loop, so it needs the target to run the countdown at all. The
-      // cashout step below is what's actually secured (see crashMultiplierAtElapsed).
-      return NextResponse.json({ token, serverSeedHash, clientSeed, crashPoint, balance });
-    }
-
     const state = Buffer.from(
       JSON.stringify({ serverSeed, clientSeed, betAmount, crashPoint })
     ).toString("base64");
@@ -79,7 +90,7 @@ export async function POST(req: NextRequest) {
     const round = await claimRound<CrashRoundPayload>(token, session.user.id);
     if (!round) return NextResponse.json({ error: "Round not found" }, { status: 404 });
 
-    const { serverSeed, serverSeedHash, clientSeed, betAmount, crashPoint } = round.payload;
+    const { betAmount, crashPoint } = round.payload;
 
     // An explicit bust notification always settles as a loss — no numeric
     // comparison needed (and none of the elapsed-time clamp's floor-rounding
@@ -96,30 +107,35 @@ export async function POST(req: NextRequest) {
 
     const result = resolveCrashBet(BigInt(betAmount), effectiveCashedOutAt, crashPoint);
 
-    const balance = Number(
-      await settleBet({
-        userId: session.user.id,
-        game: "crash",
-        betAmount: BigInt(betAmount),
-        profit: result.profit,
-        multiplier: result.cashedOutAt ?? 0,
-        serverSeed,
-        serverSeedHash,
-        clientSeed,
-        nonce: 0,
-        outcome: { crashPoint, cashedOutAt: result.cashedOutAt },
-        reserved: true,
-      })
-    );
-    await resolveRound(token);
+    let balance: number;
+    try {
+      balance = Number(
+        await settleRound(token, {
+          userId: session.user.id,
+          game: "crash",
+          betAmount: BigInt(betAmount),
+          profit: result.profit,
+          multiplier: result.cashedOutAt ?? 0,
+          ...payloadSeedFields({ ...round.payload, nonce: round.payload.nonce ?? 0 }),
+          outcome: { crashPoint, cashedOutAt: result.cashedOutAt },
+          reserved: true,
+        })
+      );
+    } catch (err) {
+      const res = playErrorResponse(err);
+      if (res) return res;
+      throw err;
+    }
 
     return NextResponse.json({
       crashPoint,
       cashedOutAt: result.cashedOutAt,
       profit: Number(result.profit),
       win: result.cashedOutAt !== null,
-      serverSeed,
-      clientSeed,
+      // A pair's server seed is revealed only on rotation; pre-seed-pair rounds reveal their own.
+      ...(round.payload.seedPairId ? {} : { serverSeed: round.payload.serverSeed }),
+      clientSeed: round.payload.clientSeed,
+      nonce: round.payload.nonce ?? 0,
       balance,
     });
   }

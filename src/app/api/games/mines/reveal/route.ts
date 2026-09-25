@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getMinesMultiplier, isMine } from "@/lib/game-engine";
 import { auth } from "@/auth";
-import { settleBet } from "@/lib/game-balance";
-import { claimRound, releaseRound, resolveRound } from "@/lib/game-engine/round-store";
+import { claimRound, releaseRound, settleRound } from "@/lib/game-engine/round-store";
+import { payloadSeedFields, playErrorResponse } from "@/lib/seeded-play";
 
 const schema = z
   .object({
@@ -18,6 +18,9 @@ interface MinesPayload {
   serverSeed: string;
   serverSeedHash: string;
   clientSeed: string;
+  /** Absent on rounds started before seed pairs (which always used nonce 0). */
+  nonce?: number;
+  seedPairId?: string;
   mineCount: number;
   minePositions: number[];
   betAmount: number;
@@ -55,7 +58,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const { serverSeed, serverSeedHash, clientSeed, minePositions, mineCount, betAmount } = gameState;
+  const { minePositions, mineCount, betAmount } = gameState;
 
   // Authenticated play tracks revealed tiles server-side (gameState.revealedTiles);
   // a client can't inflate its count by replaying an already-safe tileIndex or by
@@ -78,22 +81,24 @@ export async function POST(req: NextRequest) {
     let balance: number | undefined;
     if (token) {
       const session = await auth();
-      balance = Number(
-        await settleBet({
-          userId: session!.user.id,
-          game: "mines",
-          betAmount: BigInt(betAmount),
-          profit: BigInt(-betAmount),
-          multiplier: 0,
-          serverSeed,
-          serverSeedHash,
-          clientSeed,
-          nonce: 0,
-          outcome: { minePositions, mineCount, tileIndex, revealedCount: serverRevealedCount },
-          reserved: true,
-        })
-      );
-      await resolveRound(token);
+      try {
+        balance = Number(
+          await settleRound(token, {
+            userId: session!.user.id,
+            game: "mines",
+            betAmount: BigInt(betAmount),
+            profit: BigInt(-betAmount),
+            multiplier: 0,
+            ...payloadSeedFields({ ...gameState, nonce: gameState.nonce ?? 0 }),
+            outcome: { minePositions, mineCount, tileIndex, revealedCount: serverRevealedCount },
+            reserved: true,
+          })
+        );
+      } catch (err) {
+        const res = playErrorResponse(err);
+        if (res) return res;
+        throw err;
+      }
     }
 
     return NextResponse.json({

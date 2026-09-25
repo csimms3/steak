@@ -7,7 +7,8 @@ import {
   generateMinePositions,
 } from "@/lib/game-engine";
 import { auth } from "@/auth";
-import { reserveBet, InsufficientBalanceError } from "@/lib/game-balance";
+import { reserveBet } from "@/lib/game-balance";
+import { withSeeds, pairFields, playErrorResponse } from "@/lib/seeded-play";
 import { createRound } from "@/lib/game-engine/round-store";
 
 const schema = z.object({
@@ -24,31 +25,42 @@ export async function POST(req: NextRequest) {
   }
 
   const { betAmount, mineCount, clientSeed: suppliedClient } = parsed.data;
+
+  // Account holders: the round resolves against the active seed pair. Nonce,
+  // bet reservation and round creation share one transaction, so a seed
+  // rotation always sees (and forfeits) the round. Mine positions stay
+  // server-side; the server seed stays secret until the player rotates.
+  const session = await auth();
+  if (session?.user?.id) {
+    const userId = session.user.id;
+    try {
+      const { token, seeds, balance } = await withSeeds(userId, 1, async (tx, seeds) => {
+        const minePositions = generateMinePositions(seeds.serverSeed, seeds.clientSeed, seeds.firstNonce, mineCount);
+        const balance = await reserveBet(userId, BigInt(betAmount), tx);
+        const token = await createRound(
+          userId, "mines", BigInt(betAmount),
+          { ...pairFields(seeds), mineCount, minePositions, betAmount, revealedTiles: [] },
+          tx
+        );
+        return { token, seeds, balance };
+      });
+      return NextResponse.json({
+        token, serverSeedHash: seeds.serverSeedHash, clientSeed: seeds.clientSeed, nonce: seeds.firstNonce,
+        mineCount, gridSize: 25, balance: Number(balance),
+      });
+    } catch (err) {
+      const res = playErrorResponse(err);
+      if (res) return res;
+      throw err;
+    }
+  }
+
+  // Guest: a throwaway per-round seed in an opaque client-visible blob
+  // (documented limitation, see round-store.ts). Not provably fair.
   const serverSeed = generateServerSeed();
   const clientSeed = suppliedClient ?? generateClientSeed();
   const serverSeedHash = hashServerSeed(serverSeed);
-
-  // Derive mine positions — kept secret until the game ends.
   const minePositions = generateMinePositions(serverSeed, clientSeed, 0, mineCount);
-
-  const session = await auth();
-  if (session?.user?.id) {
-    let balance: number;
-    try {
-      balance = Number(await reserveBet(session.user.id, BigInt(betAmount)));
-    } catch (err) {
-      if (err instanceof InsufficientBalanceError) {
-        return NextResponse.json({ error: "Insufficient balance" }, { status: 400 });
-      }
-      throw err;
-    }
-    const token = await createRound(session.user.id, "mines", BigInt(betAmount), {
-      serverSeed, serverSeedHash, clientSeed, mineCount, minePositions, betAmount, revealedTiles: [],
-    });
-    return NextResponse.json({ token, serverSeedHash, clientSeed, mineCount, gridSize: 25, balance });
-  }
-
-  // Guest: opaque client-visible blob (documented limitation — see round-store.ts).
   const state = Buffer.from(
     JSON.stringify({ serverSeed, clientSeed, mineCount, minePositions, betAmount })
   ).toString("base64");

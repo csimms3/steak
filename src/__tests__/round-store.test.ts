@@ -60,6 +60,14 @@ const gameRoundModel = {
 const balances = new Map<string, bigint>();
 const settled: unknown[] = [];
 const userModel = {
+  // reserveBet's guarded debit (settleRound's extraReserve).
+  updateMany: jest.fn(async ({ where, data }: { where: { id: string; balance: { gte: bigint } }; data: { balance: { decrement: bigint } } }) => {
+    const balance = balances.get(where.id) ?? 0n;
+    if (balance < where.balance.gte) return { count: 0 };
+    balances.set(where.id, balance - data.balance.decrement);
+    return { count: 1 };
+  }),
+  findUniqueOrThrow: jest.fn(async ({ where }: { where: { id: string } }) => ({ id: where.id, balance: balances.get(where.id) ?? 0n })),
   update: jest.fn(async ({ where, data }: { where: { id: string }; data: { balance: { increment: bigint } } }) => {
     const balance = (balances.get(where.id) ?? 0n) + data.balance.increment;
     balances.set(where.id, balance);
@@ -197,6 +205,34 @@ describe("settleRound failure", () => {
     ).rejects.toThrow("connection reset");
     // The in-memory mock doesn't roll back the delete like Postgres would, so
     // check the release call itself.
+    expect(gameRoundModel.updateMany).toHaveBeenLastCalledWith({
+      where: { id: "r1", claimedAt: { not: null } },
+      data: { claimedAt: null },
+    });
+  });
+});
+
+describe("settleRound extraReserve", () => {
+  const params = {
+    userId: "u1", game: "blackjack" as const, betAmount: 20_00n, profit: 20_00n, multiplier: 0,
+    serverSeed: "s", serverSeedHash: "h", clientSeed: "c", nonce: 0, outcome: {}, reserved: true,
+  };
+
+  test("debits a hand-ending double's extra stake in the settle transaction", async () => {
+    balances.set("u1", 50_00n); // 10.00 already reserved at start, not in this balance
+    seedRound({ id: "r1", userId: "u1", betAmount: 10_00n, payload: {}, createdAt: new Date(), claimedAt: null });
+    await claimRound("r1", "u1");
+    // double: +10.00 stake, total 20.00 reserved, won 20.00 → credit 40.00
+    await expect(settleRound("r1", params, 10_00n)).resolves.toBe(80_00n);
+    expect(rounds.has("r1")).toBe(false);
+  });
+
+  test("fails without settling, and releases the claim, when the extra stake isn't affordable", async () => {
+    balances.set("u1", 5_00n);
+    seedRound({ id: "r1", userId: "u1", betAmount: 10_00n, payload: {}, createdAt: new Date(), claimedAt: null });
+    await claimRound("r1", "u1");
+    await expect(settleRound("r1", params, 10_00n)).rejects.toThrow("Insufficient balance");
+    expect(settled).toHaveLength(0);
     expect(gameRoundModel.updateMany).toHaveBeenLastCalledWith({
       where: { id: "r1", claimedAt: { not: null } },
       data: { claimedAt: null },

@@ -1,6 +1,6 @@
 import { Prisma, GameType } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { settleBet, type SettleParams } from "@/lib/game-balance";
+import { settleBet, reserveBet, type SettleParams } from "@/lib/game-balance";
 
 /**
  * Server-side storage for a stateful game's secret in-progress data (mine
@@ -64,8 +64,12 @@ export async function claimRound<T>(
 }
 
 /** Saves a claimed round's evolved payload and releases the claim so the next request can act on it. */
-export async function releaseRound(token: string, payload: unknown): Promise<void> {
-  await prisma.gameRound.update({
+export async function releaseRound(
+  token: string,
+  payload: unknown,
+  tx: Prisma.TransactionClient = prisma
+): Promise<void> {
+  await tx.gameRound.update({
     where: { id: token },
     data: { payload: toJsonValue(payload), claimedAt: null },
   });
@@ -90,12 +94,18 @@ export class RoundGoneError extends Error {
  * transaction rolls back but the claim, committed earlier by claimRound, would
  * stay set forever, blocking both play and seed rotation. So the claim is
  * released before rethrowing, leaving the round playable (and retryable).
+ *
+ * `extraReserve` debits an additional stake placed by the final action itself
+ * (a Blackjack double or split that ends the hand) in the same transaction, so
+ * a failed settlement can't leave that stake debited while the round reverts
+ * to its pre-action state (where a retry would debit it again).
  */
-export async function settleRound(token: string, params: SettleParams): Promise<bigint> {
+export async function settleRound(token: string, params: SettleParams, extraReserve = 0n): Promise<bigint> {
   try {
     return await prisma.$transaction(async (tx) => {
       const gone = await tx.gameRound.deleteMany({ where: { id: token, claimedAt: { not: null } } });
       if (gone.count !== 1) throw new RoundGoneError();
+      if (extraReserve > 0n) await reserveBet(params.userId, extraReserve, tx);
       return settleBet(params, tx);
     });
   } catch (err) {

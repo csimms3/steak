@@ -25,9 +25,10 @@ export async function createRound(
   userId: string,
   game: GameType,
   betAmount: bigint,
-  payload: unknown
+  payload: unknown,
+  tx: Prisma.TransactionClient = prisma
 ): Promise<string> {
-  const round = await prisma.gameRound.create({
+  const round = await tx.gameRound.create({
     data: { userId, game, betAmount, payload: toJsonValue(payload) },
     select: { id: true },
   });

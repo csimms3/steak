@@ -28,6 +28,12 @@ enum GameType {
   crash
 }
 
+enum SeedPairStatus {
+  next
+  active
+  revealed
+}
+
 model User {
   id           String        @id @default(uuid())
   username     String        @unique
@@ -38,6 +44,7 @@ model User {
   createdAt    DateTime      @default(now())
   gameSessions GameSession[]
   gameRounds   GameRound[]
+  seedPairs    SeedPair[]
 }
 
 // One row per resolved bet — stateless games write this immediately;
@@ -56,6 +63,9 @@ model GameSession {
   nonce          Int
   outcome        Json
   createdAt      DateTime @default(now())
+  // Null for bets settled before seed pairs existed (per-bet throwaway seeds).
+  seedPairId     String?
+  seedPair       SeedPair? @relation(fields: [seedPairId], references: [id])
 
   @@index([userId, createdAt(sort: Desc)])
 }
@@ -80,6 +90,30 @@ model GameRound {
   claimedAt DateTime?
 
   @@index([userId])
+}
+
+// Per-player provably-fair seed pair. Each user has at most one `active` pair
+// (bets resolve against it, nonce increments per bet) and one `next` pair whose
+// serverSeedHash is published before the player picks the client seed it will
+// be paired with. Rotation reveals the active seed and promotes next. The
+// one-per-user rule is enforced by partial unique indexes in the migration.
+model SeedPair {
+  id             String         @id @default(cuid())
+  userId         String
+  user           User           @relation(fields: [userId], references: [id])
+  status         SeedPairStatus
+  serverSeed     String
+  serverSeedHash String
+  // Null while `next`: the player chooses it at rotation.
+  clientSeed     String?
+  // Next nonce to hand out; a bet uses the value before the increment.
+  nonce          Int            @default(0)
+  createdAt      DateTime       @default(now())
+  activatedAt    DateTime?
+  revealedAt     DateTime?
+  gameSessions   GameSession[]
+
+  @@index([userId, status])
 }
 
 // Single-row settings table — always id = 1

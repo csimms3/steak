@@ -39,13 +39,22 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Sidebar navigation and Header with balance display + reset
 
 ### Changed
+- `next` 16.2.7 → 16.3.6 and `next-auth` beta.31 → beta.32, plus `npm audit fix`; clears the critical advisories in `next`, `next-auth` and `@auth/core`
+- CI runs on Node 22 (Node 20 is EOL) and now also runs `next build`; `package.json` declares `"engines": { "node": "22.x" }`
+- `npm run build` runs `prisma generate` first (the generated client is gitignored), and `prisma` / `dotenv` moved to `dependencies` so hosts that prune devDependencies can still run `prisma migrate deploy`
 - Game pages now use full-width layout (`GameShell` dropped `max-w-2xl`); Limbo, Wheel, and Flip use `flex-col` on mobile and `lg:flex-row` (≥1024px) for side-by-side display+controls; Dice drops `max-w-xl`
 - Plinko animation replaced SVG CSS transitions with `requestAnimationFrame` physics (gravity + upward peg-bounce) for realistic ball behaviour
 - TypeScript target bumped to ES2020 for BigInt literal support
 - Dev server port set to 3001; WebSocket server port 3002
 - Replaced `next/font/google` (Geist) with system font stack to eliminate blocking network call on load
 
+### Security
+- Per-IP rate limits on registration (5/hour) and login (10 per 5 minutes); bcrypt at cost 12 made both a cheap CPU DoS. `X-Forwarded-For` is trusted only when `TRUSTED_PROXY_HOPS` is set
+- `.env*.local` is now gitignored (it was untracked but not ignored, one `git add .` away from committing `NEXTAUTH_SECRET`)
+
 ### Fixed
+- Crash `start` had no maximum bet; it now caps at 10,000.00 like the other 12 games
+- `GET /api/user/history?page=abc` returned 500 (NaN reached Prisma); malformed `page` values now fall back to the first page
 - Crash bust settlement scored as a win at exactly the crash point — the server's bust-check is `cashedOutAt > crashPoint` (strictly greater), and the initial fix for the cashout exploit above sent `cashedOutAt === crashPoint` to signal a bust, which slipped through as a break-even win instead. Replaced with an explicit `bust` boolean rather than a numeric sentinel.
 - README/CONTRIBUTING/architecture docs described a backend (auth, Postgres, real-time Crash via Socket.io/Redis) that was never built — `docker-compose.yml`, the Prisma schema, and `next-auth`/`@prisma/client` sat in `package.json` fully unwired since the original scaffold. Docs now describe what's actually built; the unwired dependencies are wired up as part of this same change.
 - `BalanceContext`'s lazy `useState` initializer read real `localStorage` during the client's first render, which can never match the server's SSR render — any returning guest with a non-default saved balance triggered a full-tree hydration error on every page load. Fixed by starting from the SSR-safe default and adopting the real value in an effect immediately after mount.

@@ -53,6 +53,10 @@ const fakePrisma = {
   seedPair: {
     findMany: jest.fn(async ({ where, take }: { where: Where; take?: number }) =>
       pairs.filter((p) => matches(p, where)).slice(0, take ?? Infinity).map((p) => ({ ...p }))),
+    findFirst: jest.fn(async ({ where }: { where: Where }) => {
+      const p = pairs.find((row) => matches(row, where));
+      return p ? { ...p } : null;
+    }),
     findFirstOrThrow: jest.fn(async ({ where }: { where: Where }) => {
       const p = pairs.find((row) => matches(row, where));
       if (!p) throw new Error("not found");
@@ -78,8 +82,10 @@ const fakePrisma = {
   },
   gameRound: {
     findMany: jest.fn(async ({ where }: { where: Where }) => rounds.filter((r) => matches(r, where)).map((r) => ({ ...r }))),
-    delete: jest.fn(async ({ where }: { where: { id: string } }) => {
-      rounds = rounds.filter((r) => r.id !== where.id);
+    deleteMany: jest.fn(async ({ where }: { where: Where }) => {
+      const before = rounds.length;
+      rounds = rounds.filter((r) => !matches(r, where));
+      return { count: before - rounds.length };
     }),
   },
   user: {
@@ -111,6 +117,8 @@ import {
   allocateNonces,
   rotateSeedPair,
   RotationBusyError,
+  SeedsNotReadyError,
+  NoActiveSeedPairError,
 } from "@/lib/seed-pair";
 import type { Tx } from "@/lib/game-balance";
 
@@ -125,87 +133,110 @@ beforeEach(() => {
   balances.set("u1", 99_000n);
 });
 
+/** Commits a next pair (as registration or a GET would), then activates it. */
+async function activate(clientSeed = "player-seed") {
+  await getSeedState("u1");
+  return rotateSeedPair("u1", clientSeed);
+}
+
 describe("getSeedState", () => {
-  test("lazily creates an active pair and a committed next pair, exposing hashes only", async () => {
+  test("commits only a next pair: no active pair until the player picks a client seed", async () => {
     const state = await getSeedState("u1");
-    expect(pairs.map((p) => p.status).sort()).toEqual(["active", "next"]);
-    const active = pairs.find((p) => p.status === "active")!;
-    const next = pairs.find((p) => p.status === "next")!;
-    expect(state.active.serverSeedHash).toBe(sha256(active.serverSeed));
+    expect(pairs.map((p) => p.status)).toEqual(["next"]);
+    const next = pairs[0];
+    expect(state.active).toBeNull();
     expect(state.nextServerSeedHash).toBe(sha256(next.serverSeed));
-    expect(next.clientSeed).toBeNull(); // chosen later, at rotation
-    expect(JSON.stringify(state)).not.toContain(active.serverSeed);
+    expect(next.clientSeed).toBeNull();
+    expect(JSON.stringify(state)).not.toContain(next.serverSeed);
   });
 
   test("is idempotent", async () => {
     const a = await getSeedState("u1");
     const b = await getSeedState("u1");
     expect(b).toEqual(a);
-    expect(pairs).toHaveLength(2);
+    expect(pairs).toHaveLength(1);
   });
 });
 
 describe("allocateNonces", () => {
+  test("refuses before activation and never creates a pair", async () => {
+    await expect(allocateNonces(tx, "u1")).rejects.toBeInstanceOf(NoActiveSeedPairError);
+    expect(pairs).toHaveLength(0);
+  });
+
   test("hands out consecutive nonces from the active pair", async () => {
+    await activate();
     const first = await allocateNonces(tx, "u1");
     const second = await allocateNonces(tx, "u1");
     const multi = await allocateNonces(tx, "u1", 3);
     expect([first.firstNonce, second.firstNonce, multi.firstNonce]).toEqual([0, 1, 2]);
     expect((await allocateNonces(tx, "u1")).firstNonce).toBe(5);
     expect(first.seedPairId).toBe(pairs.find((p) => p.status === "active")!.id);
+    expect(first.clientSeed).toBe("player-seed");
     expect(first.serverSeedHash).toBe(sha256(first.serverSeed));
   });
 });
 
 describe("rotateSeedPair", () => {
-  test("reveals the active seed and promotes the pre-committed next seed", async () => {
+  test("refuses when no next seed was committed by an earlier request, and commits one for the retry", async () => {
+    await expect(rotateSeedPair("u1", "player-seed")).rejects.toBeInstanceOf(SeedsNotReadyError);
+    expect(pairs.map((p) => p.status)).toEqual(["next"]);
+    await expect(rotateSeedPair("u1", "player-seed")).resolves.toMatchObject({ revealed: null });
+  });
+
+  test("first activation pairs the pre-committed next seed with the player's client seed", async () => {
     const before = await getSeedState("u1");
-    await allocateNonces(tx, "u1", 4);
-
     const { revealed, state } = await rotateSeedPair("u1", "my-own-seed");
-
-    expect(sha256(revealed.serverSeed)).toBe(before.active.serverSeedHash);
-    expect(revealed.nonce).toBe(4);
-    // The new active seed is the one whose hash was published before the client seed was chosen.
-    expect(state.active.serverSeedHash).toBe(before.nextServerSeedHash);
-    expect(state.active.clientSeed).toBe("my-own-seed");
-    expect(state.active.nonce).toBe(0);
+    expect(revealed).toBeNull();
+    expect(state.active).toMatchObject({ serverSeedHash: before.nextServerSeedHash, clientSeed: "my-own-seed", nonce: 0 });
     expect(state.nextServerSeedHash).not.toBe(before.nextServerSeedHash);
+  });
+
+  test("later rotations reveal the active seed and promote the committed next seed", async () => {
+    await activate();
+    await allocateNonces(tx, "u1", 4);
+    const before = await getSeedState("u1");
+
+    const { revealed, state } = await rotateSeedPair("u1", "second-seed");
+
+    expect(sha256(revealed!.serverSeed)).toBe(before.active!.serverSeedHash);
+    expect(revealed!.nonce).toBe(4);
+    expect(state.active!.serverSeedHash).toBe(before.nextServerSeedHash);
+    expect(state.active!.clientSeed).toBe("second-seed");
     expect(pairs.filter((p) => p.status === "revealed")).toHaveLength(1);
   });
 
-  test("picks a random client seed when none is given", async () => {
-    const { state } = await rotateSeedPair("u1");
-    expect(state.active.clientSeed).toMatch(/^[0-9a-f]{16}$/);
-  });
-
-  test("rejects client seeds outside the allowed charset", async () => {
+  test("requires a well-formed client seed", async () => {
+    await getSeedState("u1");
     await expect(rotateSeedPair("u1", "has:colon")).rejects.toThrow("invalid client seed");
     await expect(rotateSeedPair("u1", "x".repeat(65))).rejects.toThrow("invalid client seed");
+    await expect(rotateSeedPair("u1", "")).rejects.toThrow("invalid client seed");
   });
 
-  test("forfeits open rounds as losses before revealing", async () => {
-    rounds.push({
-      id: "r1", userId: "u1", game: "mines", betAmount: 1000n, claimedAt: null,
-      payload: { serverSeed: "s", serverSeedHash: "h", clientSeed: "c", nonce: 7, seedPairId: "pairX" },
-    });
+  test("forfeits open rounds on the revealed pair as losses, leaving other rounds alone", async () => {
+    await activate();
+    const activeId = pairs.find((p) => p.status === "active")!.id;
+    rounds.push(
+      { id: "r1", userId: "u1", game: "mines", betAmount: 1000n, claimedAt: null, payload: { nonce: 7, seedPairId: activeId } },
+      { id: "legacy", userId: "u1", game: "hilo", betAmount: 500n, claimedAt: null, payload: { serverSeed: "own-seed" } },
+    );
 
-    const { forfeited } = await rotateSeedPair("u1");
+    const { forfeited, revealed } = await rotateSeedPair("u1", "next-seed");
 
     expect(forfeited).toBe(1);
-    expect(rounds).toHaveLength(0);
+    expect(rounds.map((r) => r.id)).toEqual(["legacy"]);
     expect(balances.get("u1")).toBe(99_000n); // reserved at start; a loss credits nothing back
     expect(sessions).toHaveLength(1);
-    expect(sessions[0]).toMatchObject({ game: "mines", profit: -1000n, nonce: 7, seedPairId: "pairX", outcome: { forfeited: "seed rotation" } });
+    expect(sessions[0]).toMatchObject({
+      game: "mines", profit: -1000n, nonce: 7, seedPairId: activeId,
+      serverSeed: revealed!.serverSeed, outcome: { forfeited: "seed rotation" },
+    });
   });
 
-  test("forfeits rounds whose claim is stale", async () => {
-    rounds.push({ id: "r1", userId: "u1", game: "hilo", betAmount: 500n, payload: {}, claimedAt: new Date(Date.now() - 60_000) });
-    await expect(rotateSeedPair("u1")).resolves.toMatchObject({ forfeited: 1 });
-  });
-
-  test("refuses while a round is claimed by an in-flight request", async () => {
-    rounds.push({ id: "r1", userId: "u1", game: "mines", betAmount: 1000n, payload: {}, claimedAt: new Date() });
-    await expect(rotateSeedPair("u1")).rejects.toBeInstanceOf(RotationBusyError);
+  test("refuses while a round on the pair is claimed by another request", async () => {
+    await activate();
+    const activeId = pairs.find((p) => p.status === "active")!.id;
+    rounds.push({ id: "r1", userId: "u1", game: "mines", betAmount: 1000n, payload: { seedPairId: activeId }, claimedAt: new Date(Date.now() - 60 * 60_000) });
+    await expect(rotateSeedPair("u1", "next-seed")).rejects.toBeInstanceOf(RotationBusyError);
   });
 });

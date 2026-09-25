@@ -9,6 +9,7 @@ import { useBalance } from "@/context/BalanceContext";
 import { useSettings } from "@/context/SettingsContext";
 import { getKenoMultiplier, type KenoSpot } from "@/lib/game-engine/keno";
 import { cn } from "@/lib/cn";
+import { playFetch } from "@/lib/seed-client";
 
 interface KenoResponse {
   picks: number[]; drawn: number[]; hits: number;
@@ -56,7 +57,7 @@ export default function KenoPage() {
     setPlaying(true);
     setLast(null);
     try {
-      const res = await fetch("/api/games/keno", {
+      const res = await playFetch("/api/games/keno", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ betAmount, picks: picksArr, clientSeed }),

@@ -9,6 +9,7 @@ import { useBalance } from "@/context/BalanceContext";
 import { useSettings } from "@/context/SettingsContext";
 import { getDiamondsMultiplier, type GemType } from "@/lib/game-engine/diamonds";
 import { cn } from "@/lib/cn";
+import { playFetch } from "@/lib/seed-client";
 
 interface DiamondsResponse {
   picks: number[]; tiles: GemType[]; diamondPositions: number[];
@@ -84,7 +85,7 @@ export default function DiamondsPage() {
     setPlaying(true);
     setLast(null);
     try {
-      const res = await fetch("/api/games/diamonds", {
+      const res = await playFetch("/api/games/diamonds", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ betAmount, picks: Array.from(picks), clientSeed }),

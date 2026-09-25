@@ -1,14 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { Settings as SettingsIcon, Shuffle, Copy, Check, RotateCcw } from "lucide-react";
 import { useSettings } from "@/context/SettingsContext";
 import { useBalance } from "@/context/BalanceContext";
 import { cn } from "@/lib/cn";
+import { SeedPairPanel } from "@/components/SeedPairPanel";
 
 export default function SettingsPage() {
   const { clientSeed, setClientSeed, randomizeClientSeed, startingBalance, setStartingBalance, resetToDefaults } = useSettings();
   const { reset: resetBalance } = useBalance();
+  const { status } = useSession();
 
   const [seedDraft, setSeedDraft] = useState(clientSeed);
   const [balanceDraft, setBalanceDraft] = useState((startingBalance / 100).toFixed(2));
@@ -45,50 +48,57 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Provably Fair */}
-      <section className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 space-y-4">
-        <div>
-          <h2 className="text-sm font-bold text-[var(--text)]">Client Seed</h2>
-          <p className="text-xs text-[var(--muted)] mt-0.5">
-            Used alongside the server seed for every game&apos;s outcome. Changing it
-            changes future results — it does not affect bets already placed.
-          </p>
-        </div>
+      {/* Provably Fair: logged-in players get the committed seed pair; guests a local client seed. */}
+      {status === "authenticated" && <SeedPairPanel />}
+      {status === "unauthenticated" && (
+        <section className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 space-y-4">
+          <div>
+            <h2 className="text-sm font-bold text-[var(--text)]">Client Seed</h2>
+            <p className="text-xs text-[var(--muted)] mt-0.5">
+              Used alongside the server seed for every game&apos;s outcome. Changing it
+              changes future results — it does not affect bets already placed.
+            </p>
+            <p className="text-xs text-[var(--muted)] mt-1.5">
+              As a guest, each bet gets a fresh server seed revealed with the result: you can recompute
+              outcomes, but they aren&apos;t provably fair. Log in to play on a committed seed pair.
+            </p>
+          </div>
 
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={seedDraft}
-            onChange={(e) => setSeedDraft(e.target.value)}
-            placeholder="hex string"
-            className="flex-1 bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm font-mono text-[var(--text)] focus:outline-none focus:border-[var(--accent)]"
-          />
-          <button
-            onClick={copySeed}
-            title="Copy current seed"
-            className="px-3 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted)] hover:text-[var(--text)] hover:border-[var(--accent)] transition-colors"
-          >
-            {copied ? <Check size={16} className="text-emerald-400" /> : <Copy size={16} />}
-          </button>
-          <button
-            onClick={() => setSeedDraft(randomizeClientSeed())}
-            title="Randomize"
-            className="px-3 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted)] hover:text-[var(--text)] hover:border-[var(--accent)] transition-colors"
-          >
-            <Shuffle size={16} />
-          </button>
-        </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={seedDraft}
+              onChange={(e) => setSeedDraft(e.target.value)}
+              placeholder="hex string"
+              className="flex-1 bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm font-mono text-[var(--text)] focus:outline-none focus:border-[var(--accent)]"
+            />
+            <button
+              onClick={copySeed}
+              title="Copy current seed"
+              className="px-3 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted)] hover:text-[var(--text)] hover:border-[var(--accent)] transition-colors"
+            >
+              {copied ? <Check size={16} className="text-emerald-400" /> : <Copy size={16} />}
+            </button>
+            <button
+              onClick={() => setSeedDraft(randomizeClientSeed())}
+              title="Randomize"
+              className="px-3 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted)] hover:text-[var(--text)] hover:border-[var(--accent)] transition-colors"
+            >
+              <Shuffle size={16} />
+            </button>
+          </div>
 
-        <button
-          onClick={saveSeed}
-          disabled={!seedDirty || seedDraft.trim() === ""}
-          className={cn("w-full py-2.5 rounded-lg font-bold text-sm transition-all",
-            "bg-[var(--accent)] text-white hover:opacity-90 active:scale-[0.99]",
-            "disabled:opacity-30 disabled:cursor-not-allowed")}
-        >
-          Save Seed
-        </button>
-      </section>
+          <button
+            onClick={saveSeed}
+            disabled={!seedDirty || seedDraft.trim() === ""}
+            className={cn("w-full py-2.5 rounded-lg font-bold text-sm transition-all",
+              "bg-[var(--accent)] text-white hover:opacity-90 active:scale-[0.99]",
+              "disabled:opacity-30 disabled:cursor-not-allowed")}
+          >
+            Save Seed
+          </button>
+        </section>
+      )}
 
       {/* Account */}
       <section className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 space-y-4">

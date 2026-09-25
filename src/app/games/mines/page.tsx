@@ -7,6 +7,7 @@ import { useBalance } from "@/context/BalanceContext";
 import { useSettings } from "@/context/SettingsContext";
 import { getMinesMultiplier } from "@/lib/game-engine/mines";
 import { cn } from "@/lib/cn";
+import { playFetch } from "@/lib/seed-client";
 
 type TileState = "hidden" | "safe" | "mine";
 
@@ -52,7 +53,7 @@ export default function MinesPage() {
     if (betAmount > balance || loading) return;
     setLoading(true);
     try {
-      const res = await fetch("/api/games/mines/start", {
+      const res = await playFetch("/api/games/mines/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ betAmount, mineCount, clientSeed }),
@@ -77,7 +78,7 @@ export default function MinesPage() {
       if (!game.active || game.tiles[index] !== "hidden" || loading) return;
       setLoading(true);
       try {
-        const res = await fetch("/api/games/mines/reveal", {
+        const res = await playFetch("/api/games/mines/reveal", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -126,7 +127,7 @@ export default function MinesPage() {
     if (!game.active || game.revealedCount === 0 || loading) return;
     setLoading(true);
     try {
-      const res = await fetch("/api/games/mines/cashout", {
+      const res = await playFetch("/api/games/mines/cashout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

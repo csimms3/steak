@@ -23,7 +23,8 @@ export async function GET(req: NextRequest) {
     take: PAGE_SIZE + 1,
     select: {
       id: true, game: true, betAmount: true, profit: true, multiplier: true,
-      serverSeedHash: true, clientSeed: true, createdAt: true,
+      serverSeed: true, serverSeedHash: true, clientSeed: true, nonce: true, createdAt: true,
+      seedPair: { select: { status: true } },
     },
   });
 
@@ -34,8 +35,13 @@ export async function GET(req: NextRequest) {
     betAmount: Number(s.betAmount),
     profit: Number(s.profit),
     multiplier: s.multiplier,
+    // A seed pair's server seed also covers the player's future bets, so it's
+    // only shown once the pair is revealed (rotated). Bets from before seed
+    // pairs used a per-bet seed that was revealed at the time.
+    serverSeed: !s.seedPair || s.seedPair.status === "revealed" ? s.serverSeed : null,
     serverSeedHash: s.serverSeedHash,
     clientSeed: s.clientSeed,
+    nonce: s.nonce,
     createdAt: s.createdAt.toISOString(),
   }));
 

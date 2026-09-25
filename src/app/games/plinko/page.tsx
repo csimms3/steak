@@ -8,6 +8,8 @@ import { useSettings } from "@/context/SettingsContext";
 import { getMultiplierTable } from "@/lib/game-engine/plinko";
 import { cn } from "@/lib/cn";
 import type { PlinkoRisk } from "@/lib/game-engine/plinko";
+import { playFetch } from "@/lib/seed-client";
+import { ServerSeedRow } from "@/components/ui/GameShell";
 
 // ─── Board geometry ───────────────────────────────────────────────────────────
 
@@ -296,7 +298,8 @@ interface PlinkoResult {
   bucketIndex: number;
   multiplier: number;
   profit: number;
-  serverSeed: string;
+  /** Absent for logged-in bets until the seed pair is rotated. */
+  serverSeed?: string;
   serverSeedHash: string;
   clientSeed: string;
 }
@@ -330,7 +333,7 @@ export default function PlinkoPage() {
     ballsRef.current = [];
 
     try {
-      const res = await fetch("/api/games/plinko", {
+      const res = await playFetch("/api/games/plinko", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ betAmount, rows, risk, count: ballCount, clientSeed }),
@@ -536,7 +539,7 @@ export default function PlinkoPage() {
             Provably Fair {ballCount > 1 ? "— Last Ball" : "Verification"}
           </summary>
           <div className="mt-3 space-y-1.5 font-mono break-all text-[var(--muted)]">
-            <div><span>Server Seed: </span><span className="text-[var(--text)]">{lastResult.serverSeed}</span></div>
+            <ServerSeedRow serverSeed={lastResult.serverSeed} />
             <div><span>Hash: </span><span className="text-[var(--text)]">{lastResult.serverSeedHash}</span></div>
             <div><span>Client Seed: </span><span className="text-[var(--text)]">{lastResult.clientSeed}</span></div>
             <div><span>Path: </span><span className="text-[var(--text)]">{lastResult.path.join("")}</span></div>

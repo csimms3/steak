@@ -92,7 +92,7 @@ export function Sidebar() {
             <span className="text-xs font-bold text-[var(--text)]">Provably fair</span>
           </div>
           <p className="mt-1 text-[10px] leading-relaxed text-[var(--muted)]">
-            Every outcome is verifiable. Play money only — no real wagering.
+            For account holders: every outcome is committed before you bet. Play money only.
           </p>
         </Link>
       </div>

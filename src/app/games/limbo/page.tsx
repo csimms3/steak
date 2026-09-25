@@ -8,6 +8,7 @@ import { useBalance } from "@/context/BalanceContext";
 import { useSettings } from "@/context/SettingsContext";
 import { getLimboWinChance } from "@/lib/game-engine/limbo";
 import { cn } from "@/lib/cn";
+import { playFetch } from "@/lib/seed-client";
 
 interface LimboResponse {
   result: number; win: boolean; multiplier: number; profit: number;
@@ -46,7 +47,7 @@ export default function LimboPage() {
     setRolling(true);
     setLast(null);
     try {
-      const res = await fetch("/api/games/limbo", {
+      const res = await playFetch("/api/games/limbo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ betAmount, target, clientSeed }),

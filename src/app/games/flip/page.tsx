@@ -9,6 +9,7 @@ import { useBalance } from "@/context/BalanceContext";
 import { useSettings } from "@/context/SettingsContext";
 import { getFlipMultiplier, type Side } from "@/lib/game-engine/flip";
 import { cn } from "@/lib/cn";
+import { playFetch } from "@/lib/seed-client";
 
 interface FlipResponse {
   flips: Side[]; side: Side; streak: number; targetStreak: number; win: boolean;
@@ -51,7 +52,7 @@ export default function FlipPage() {
     timers.current.forEach(clearTimeout);
     timers.current = [];
     try {
-      const res = await fetch("/api/games/flip", {
+      const res = await playFetch("/api/games/flip", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ betAmount, side, targetStreak, clientSeed }),

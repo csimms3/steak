@@ -1,6 +1,7 @@
 "use client";
 
 import { ReactNode } from "react";
+import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 
 export interface ProvablyFair {
@@ -9,6 +10,27 @@ export interface ProvablyFair {
   clientSeed: string;
   nonce?: number;
   extra?: { label: string; value: string }[];
+}
+
+/**
+ * The server seed line of a fairness panel. Logged-in bets run on the player's
+ * seed pair, whose server seed covers future bets too, so the server reveals it
+ * only when the player rotates. Guest bets reveal theirs immediately.
+ */
+export function ServerSeedRow({ serverSeed }: { serverSeed?: string | null }) {
+  return (
+    <div>
+      Server Seed:{" "}
+      {serverSeed ? (
+        <span className="text-[var(--text)]">{serverSeed}</span>
+      ) : (
+        <span className="font-sans">
+          revealed when you{" "}
+          <Link href="/settings" className="text-[var(--accent)] hover:underline">rotate your seed pair</Link>
+        </span>
+      )}
+    </div>
+  );
 }
 
 interface GameShellProps {
@@ -49,7 +71,7 @@ export function GameShell({
             Provably Fair Verification
           </summary>
           <div className="mt-3 space-y-1.5 font-mono break-all text-[var(--muted)]">
-            <div>Server Seed: <span className="text-[var(--text)]">{fair.serverSeed}</span></div>
+            <ServerSeedRow serverSeed={fair.serverSeed} />
             <div>Hash: <span className="text-[var(--text)]">{fair.serverSeedHash}</span></div>
             <div>Client Seed: <span className="text-[var(--text)]">{fair.clientSeed}</span></div>
             {fair.nonce !== undefined && (

@@ -9,6 +9,7 @@ import { useBalance } from "@/context/BalanceContext";
 import { useSettings } from "@/context/SettingsContext";
 import { dragonTowerConfig, dragonTowerStep, type DragonTowerDifficulty } from "@/lib/game-engine";
 import { cn } from "@/lib/cn";
+import { playFetch } from "@/lib/seed-client";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -101,7 +102,7 @@ export default function DragonTowerPage() {
     if (betAmount > balance || busy) return;
     setBusy(true);
     try {
-      const res = await fetch("/api/games/dragon-tower/start", {
+      const res = await playFetch("/api/games/dragon-tower/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ betAmount, difficulty, clientSeed: settingsSeed }),
@@ -130,7 +131,7 @@ export default function DragonTowerPage() {
     if ((!gameState && !gameToken) || busy) return;
     setBusy(true);
     try {
-      const res = await fetch("/api/games/dragon-tower/climb", {
+      const res = await playFetch("/api/games/dragon-tower/climb", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...(gameToken ? { token: gameToken } : { state: gameState }), col }),
@@ -166,7 +167,7 @@ export default function DragonTowerPage() {
     if ((!gameState && !gameToken) || busy || currentRow === 0) return;
     setBusy(true);
     try {
-      const res = await fetch("/api/games/dragon-tower/cashout", {
+      const res = await playFetch("/api/games/dragon-tower/cashout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(gameToken ? { token: gameToken } : { state: gameState }),

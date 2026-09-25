@@ -11,7 +11,7 @@ const bricolage = Bricolage_Grotesque({ subsets: ["latin"], variable: "--font-br
 
 export const metadata: Metadata = {
   title: "Steak — Play Money Casino",
-  description: "A play-money game platform with provably fair outcomes. No real money.",
+  description: "A play-money online game platform. No real money.",
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

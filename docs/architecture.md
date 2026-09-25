@@ -62,7 +62,7 @@ What the round-store fix *does* close for Crash: the server no longer blindly tr
 - `game` — enum covering all 13 games
 - `betAmount`, `profit` — `BigInt`
 - `multiplier` — `Float`
-- `serverSeed`, `serverSeedHash`, `clientSeed`, `nonce` — the full provably-fair record for that bet
+- `serverSeed`, `serverSeedHash`, `clientSeed`, `nonce` — the full seed record for that bet, enough to recompute the outcome
 - `outcome` — `Json`, game-specific (revealed tiles, dealt cards, drawn numbers, …)
 - `createdAt`
 - Indexed on `(userId, createdAt desc)` for the history page's pagination
@@ -111,12 +111,12 @@ None. No payment processors, no third-party game providers, no analytics SDKs. D
 
 **Status**: Accepted
 **Context**: Casino games — even play-money ones — should be verifiably fair. The industry-standard approach is an HMAC-SHA256 seed chain.
-**Decision**: Every bet derives its outcome from `HMAC-SHA256(serverSeed, clientSeed:nonce)`. The server returns `SHA256(serverSeed)` and later reveals `serverSeed`, so any player can recompute the outcome.
-**Consequences**: Small implementation overhead in the game engine (`src/lib/game-engine/rng.ts`). Commit timing is not uniform, and only half the library gets a real guarantee:
-- **Stateful games (6: Mines, Hilo, Dragon Tower, Blackjack, Video Poker, Crash)**: the hash is returned by `start`, and the seed is revealed at cashout/settle on a later request. The server is bound before the round plays out, so it cannot pick a favourable seed.
-- **Stateless games (7: Dice, Limbo, Flip, Keno, Wheel, Diamonds, Plinko)**: the hash, the seed and the result all come back in one response. The outcome is recomputable, but nothing binds the server before it knows the bet, so it could grind seeds. The hash proves nothing here.
+**Decision**: Every bet derives its outcome from `HMAC-SHA256(serverSeed, clientSeed:nonce)`, and `serverSeed` is revealed once the bet settles so the player can recompute the result. The server generates a fresh `serverSeed` per bet (or per round) inside the request that receives the bet and the client seed.
+**Consequences**: Small implementation overhead in the game engine (`src/lib/game-engine/rng.ts`). Results can be recomputed, but they are **not yet provably fair**: that needs the server to commit to `SHA256(serverSeed)` before it sees the bet, and no game does. When the seed is revealed depends on the game type:
+- **Stateless games (7: Dice, Limbo, Flip, Keno, Wheel, Diamonds, Plinko)**: the hash, the seed and the result all come back in one response.
+- **Stateful games (6: Mines, Hilo, Dragon Tower, Blackjack, Video Poker, Crash)**: `start` returns the hash, and the seed is revealed at cashout or settle on a later request. That binds the seed for the rest of the round, so it can't adapt to the player's moves. It doesn't stop the server choosing the seed at `start` with the bet in view (for Crash, the whole outcome is fixed at `start`). A Blackjack natural settles in the `start` response, so it doesn't even get the mid-round binding.
 
-The fix is a per-player active seed pair (see the roadmap backlog): publish the hash up front, increment the nonce per bet, reveal on rotation. That puts all 13 games under the stateful guarantee.
+The fix is a per-player active seed pair (see the roadmap backlog): publish the hash before any bet, increment the nonce per bet, and reveal the seed on rotation. The client seed is then chosen after the server is committed, which is what makes all 13 games provably fair.
 
 ---
 

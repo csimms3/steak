@@ -56,6 +56,9 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `.env*.local` is now gitignored (it was untracked but not ignored, one `git add .` away from committing `NEXTAUTH_SECRET`)
 
 ### Fixed
+- Blackjack double/split debited its extra stake in a separate transaction from the round; a failed settlement could revert the hand with the stake gone, and a retry would debit it again. The stake is now debited atomically with the round change
+- A stateful round whose settlement failed (e.g. a transient DB error) stayed claimed forever, blocking play and, now, seed rotation; the claim is released instead. Video Poker also released no claim on a rejected draw
+- Blackjack, Dragon Tower, Hilo and Video Poker fairness panels showed nonce 0 (Hilo also the local settings seed) instead of the round's own; Plinko's panel showed no nonce
 - Crash `start` had no maximum bet; it now caps at 10,000.00 like the other 12 games
 - `GET /api/user/history?page=abc` returned 500 (NaN reached Prisma); malformed `page` values now fall back to the first page
 - Crash bust settlement scored as a win at exactly the crash point — the server's bust-check is `cashedOutAt > crashPoint` (strictly greater), and the initial fix for the cashout exploit above sent `cashedOutAt === crashPoint` to signal a bust, which slipped through as a break-even win instead. Replaced with an explicit `bust` boolean rather than a numeric sentinel.

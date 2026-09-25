@@ -31,7 +31,7 @@ Two code paths, chosen by `auth()` inside each route handler — there's no midd
 
 **Authenticated** (session present): every response that resolves a bet includes a `balance` field, computed server-side. `BalanceContext.syncBalance()` sets React state directly from that field — no client-side math, no `localStorage` write. Two helpers in `src/lib/game-balance.ts` do the actual work:
 
-- `reserveBet(userId, betAmount)` — called at a stateful game's `start`. Atomically checks and decrements balance in one guarded `UPDATE ... WHERE balance >= betAmount`, so there's no read-then-write race window under concurrent requests from the same user.
+- `reserveBet(userId, betAmount)` — called at a stateful game's `start`. Atomically checks and decrements balance in one guarded `UPDATE ... WHERE balance >= betAmount`, so there's no read-then-write race window under concurrent requests from the same user. Blackjack's double/split also reserves its extra stake mid-hand, always in the same transaction as the round change it pays for (saving the hand, or the final `settleRound`), so a failure can't leave the stake debited while the round reverts to its pre-action state.
 - `settleBet(params)` — called at every terminal resolution (a stateless game's single route, or a stateful game's loss/cashout). Applies the balance delta and writes a `GameSession` history row in one transaction. For an already-reserved bet, the credit is `betAmount + profit` (the reservation already covered the wager); for an unreserved stateless bet, it also re-validates affordability in the same atomic update.
 
 Stateful games' authenticated `start` route calls `createRound()` instead of building a blob — secrets go into a `GameRound` row, and the client gets back an opaque token (the row's id) instead of the blob. Subsequent requests load, and where the game's state evolves mid-round (Hilo's position/multiplier, Blackjack's hand state), update that row; the terminal request deletes it.
@@ -73,7 +73,7 @@ What the round-store fix *does* close for Crash: the server no longer blindly tr
 - `userId` (FK), `game`, `betAmount`
 - `payload` — `Json`, whatever that game's secret state needs (mine positions, current deck position, the crash point, …)
 - `createdAt` — also used as the timing reference for Crash's elapsed-time cashout validation
-- Deleted on terminal resolution, in the same transaction as the settlement (`settleRound`). A round abandoned mid-game stays until the player rotates their seed pair, which forfeits it; otherwise nothing prunes it (a known gap, not yet a problem at this scale)
+- Deleted on terminal resolution, in the same transaction as the settlement (`settleRound`). If the settlement fails, the claim is released (`unclaimRound`, which never rewrites the payload) so the round stays playable. A round abandoned mid-game stays until the player rotates their seed pair, which forfeits it; otherwise nothing prunes it, and a round whose state save itself fails stays claimed (known gaps, not yet a problem at this scale)
 
 **SeedPair** — the per-player provably-fair commitment (see ADR-003)
 - `id`, `userId` (FK)

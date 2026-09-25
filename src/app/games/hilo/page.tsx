@@ -9,6 +9,7 @@ import { useBalance } from "@/context/BalanceContext";
 import { useSettings } from "@/context/SettingsContext";
 import { hiloOdds, hiloStep, rankLabel, suitSymbol, isRedSuit, type Card, type HiloGuess } from "@/lib/game-engine";
 import { cn } from "@/lib/cn";
+import { playFetch } from "@/lib/seed-client";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -81,7 +82,7 @@ export default function HiloPage() {
     if (betAmount > balance || busy) return;
     setBusy(true);
     try {
-      const res = await fetch("/api/games/hilo/start", {
+      const res = await playFetch("/api/games/hilo/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ betAmount, clientSeed: settingsSeed }),
@@ -107,7 +108,7 @@ export default function HiloPage() {
     if ((!gameState && !gameToken) || !currentCard || busy) return;
     setBusy(true);
     try {
-      const res = await fetch("/api/games/hilo/guess", {
+      const res = await playFetch("/api/games/hilo/guess", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...(gameToken ? { token: gameToken } : { state: gameState }), guess: g }),
@@ -137,7 +138,7 @@ export default function HiloPage() {
     if ((!gameState && !gameToken) || busy || multiplier <= 1) return;
     setBusy(true);
     try {
-      const res = await fetch("/api/games/hilo/cashout", {
+      const res = await playFetch("/api/games/hilo/cashout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(gameToken ? { token: gameToken } : { state: gameState }),

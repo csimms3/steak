@@ -7,6 +7,8 @@ import { useBalance } from "@/context/BalanceContext";
 import { useSettings } from "@/context/SettingsContext";
 import { getDiceMultiplier } from "@/lib/game-engine/dice";
 import { cn } from "@/lib/cn";
+import { playFetch } from "@/lib/seed-client";
+import { ServerSeedRow } from "@/components/ui/GameShell";
 
 type Direction = "over" | "under";
 
@@ -15,7 +17,8 @@ interface DiceResult {
   win: boolean;
   multiplier: number;
   profit: number;
-  serverSeed: string;
+  /** Absent for logged-in bets until the seed pair is rotated. */
+  serverSeed?: string;
   serverSeedHash: string;
   clientSeed: string;
   nonce: number;
@@ -186,7 +189,7 @@ export default function DicePage() {
     setRolling(true);
 
     try {
-      const res = await fetch("/api/games/dice", {
+      const res = await playFetch("/api/games/dice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ betAmount, target, direction, clientSeed }),
@@ -356,7 +359,7 @@ export default function DicePage() {
             Provably Fair Verification
           </summary>
           <div className="mt-3 space-y-1.5 font-mono break-all text-[var(--muted)]">
-            <div><span>Server Seed: </span><span className="text-[var(--text)]">{result.serverSeed}</span></div>
+            <ServerSeedRow serverSeed={result.serverSeed} />
             <div><span>Hash: </span><span className="text-[var(--text)]">{result.serverSeedHash}</span></div>
             <div><span>Client Seed: </span><span className="text-[var(--text)]">{result.clientSeed}</span></div>
             <div><span>Nonce: </span><span className="text-[var(--text)]">{result.nonce}</span></div>

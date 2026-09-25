@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { History as HistoryIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { ServerSeedRow } from "@/components/ui/GameShell";
 
 interface HistoryEntry {
   id: string;
@@ -12,8 +13,11 @@ interface HistoryEntry {
   betAmount: number;
   profit: number;
   multiplier: number;
+  /** Null while the bet's seed pair is still active (revealed on rotation). */
+  serverSeed: string | null;
   serverSeedHash: string;
   clientSeed: string;
+  nonce: number;
   createdAt: string;
 }
 
@@ -80,19 +84,27 @@ export default function HistoryPage() {
         ) : (
           <div className="divide-y divide-[var(--border)]">
             {entries.map((e) => (
-              <div key={e.id} className="flex items-center justify-between px-5 py-3 gap-4">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-[var(--text)]">{GAME_LABELS[e.game] ?? e.game}</p>
-                  <p className="text-xs text-[var(--muted)]">
-                    {new Date(e.createdAt).toLocaleString()} · bet ${fmt(e.betAmount)}
-                    {e.multiplier > 0 && ` · ${e.multiplier}×`}
-                  </p>
+              <details key={e.id} className="group">
+                <summary className="flex items-center justify-between px-5 py-3 gap-4 cursor-pointer list-none">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[var(--text)]">{GAME_LABELS[e.game] ?? e.game}</p>
+                    <p className="text-xs text-[var(--muted)]">
+                      {new Date(e.createdAt).toLocaleString()} · bet ${fmt(e.betAmount)}
+                      {e.multiplier > 0 && ` · ${e.multiplier}×`}
+                    </p>
+                  </div>
+                  <span className={cn("text-sm font-bold tabular-nums shrink-0",
+                    e.profit > 0 ? "text-[var(--win)]" : e.profit < 0 ? "text-[var(--lose)]" : "text-[var(--muted)]")}>
+                    {e.profit > 0 ? "+" : ""}${fmt(e.profit)}
+                  </span>
+                </summary>
+                <div className="px-5 pb-3 space-y-1 font-mono text-[11px] break-all text-[var(--muted)]">
+                  <ServerSeedRow serverSeed={e.serverSeed} />
+                  <div>Hash: <span className="text-[var(--text)]">{e.serverSeedHash}</span></div>
+                  <div>Client Seed: <span className="text-[var(--text)]">{e.clientSeed}</span></div>
+                  <div>Nonce: <span className="text-[var(--text)]">{e.nonce}</span></div>
                 </div>
-                <span className={cn("text-sm font-bold tabular-nums shrink-0",
-                  e.profit > 0 ? "text-[var(--win)]" : e.profit < 0 ? "text-[var(--lose)]" : "text-[var(--muted)]")}>
-                  {e.profit > 0 ? "+" : ""}${fmt(e.profit)}
-                </span>
-              </div>
+              </details>
             ))}
           </div>
         )}

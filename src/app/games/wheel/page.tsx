@@ -9,6 +9,7 @@ import { useBalance } from "@/context/BalanceContext";
 import { useSettings } from "@/context/SettingsContext";
 import { getWheelRing, type WheelRisk, type WheelSegments } from "@/lib/game-engine/wheel";
 import { cn } from "@/lib/cn";
+import { playFetch } from "@/lib/seed-client";
 
 interface WheelResponse {
   segmentIndex: number; multiplier: number; profit: number; ring: number[];
@@ -97,7 +98,7 @@ export default function WheelPage() {
     setLast(null);
     if (settleTimer.current) clearTimeout(settleTimer.current);
     try {
-      const res = await fetch("/api/games/wheel", {
+      const res = await playFetch("/api/games/wheel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ betAmount, segments, risk, clientSeed }),

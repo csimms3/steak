@@ -10,6 +10,7 @@ import { useBalance } from "@/context/BalanceContext";
 import { useSettings } from "@/context/SettingsContext";
 import { videoPokerPayout, type Card, type PokerCategory } from "@/lib/game-engine";
 import { cn } from "@/lib/cn";
+import { playFetch } from "@/lib/seed-client";
 
 interface DealResponse {
   hand: Card[]; state?: string; token?: string; serverSeedHash: string; clientSeed: string; balance?: number;
@@ -53,7 +54,7 @@ export default function VideoPokerPage() {
     if (betAmount > balance || busy) return;
     setBusy(true);
     try {
-      const res = await fetch("/api/games/video-poker/deal", {
+      const res = await playFetch("/api/games/video-poker/deal", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ betAmount, clientSeed: settingsSeed }),
@@ -82,7 +83,7 @@ export default function VideoPokerPage() {
     if ((!gameState && !gameToken) || busy) return;
     setBusy(true);
     try {
-      const res = await fetch("/api/games/video-poker/draw", {
+      const res = await playFetch("/api/games/video-poker/draw", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...(gameToken ? { token: gameToken } : { state: gameState }), holds }),

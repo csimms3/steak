@@ -161,7 +161,7 @@ export default function LobbyPage() {
               The world&apos;s most <span className="text-[var(--accent-2)]">sizzling</span> play-money casino
             </h1>
             <p className="mt-2.5 text-sm text-[var(--muted)]">
-              Provably fair originals · Play money only · No real wagering
+              Provably fair for account holders · Play money only · No real wagering
             </p>
             <div className="mt-5 flex items-center gap-3">
               <Link

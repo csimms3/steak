@@ -6,6 +6,8 @@ import { BetInput } from "@/components/ui/BetInput";
 import { useBalance } from "@/context/BalanceContext";
 import { useSettings } from "@/context/SettingsContext";
 import { cn } from "@/lib/cn";
+import { playFetch } from "@/lib/seed-client";
+import { ServerSeedRow } from "@/components/ui/GameShell";
 
 type Phase = "idle" | "betting" | "flying" | "crashed" | "cashedout";
 
@@ -14,8 +16,10 @@ interface RoundResult {
   cashedOutAt: number | null;
   profit: number;
   win: boolean;
-  serverSeed: string;
+  /** Absent for logged-in rounds until the seed pair is rotated. */
+  serverSeed?: string;
   clientSeed: string;
+  nonce?: number;
   balance?: number;
 }
 
@@ -57,7 +61,7 @@ export default function CrashPage() {
     setCrashPoint(null);
 
     try {
-      const res = await fetch("/api/games/crash/round", {
+      const res = await playFetch("/api/games/crash/round", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "start", betAmount, clientSeed }),
@@ -90,7 +94,7 @@ export default function CrashPage() {
               // GameSession gets recorded and the round row is cleaned up —
               // the bet was already reserved at start, so balance itself
               // doesn't change further here.
-              fetch("/api/games/crash/round", {
+              playFetch("/api/games/crash/round", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -130,7 +134,7 @@ export default function CrashPage() {
     setPhase("cashedout");
 
     try {
-      const res = await fetch("/api/games/crash/round", {
+      const res = await playFetch("/api/games/crash/round", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -264,9 +268,12 @@ export default function CrashPage() {
           </summary>
           <div className="mt-3 space-y-1.5 font-mono break-all">
             <div><span className="text-[var(--muted)]">Crash Point: </span><span className="text-[var(--text)]">{result.crashPoint.toFixed(2)}×</span></div>
-            {result.serverSeed && <>
-              <div><span className="text-[var(--muted)]">Server Seed: </span><span className="text-[var(--text)]">{result.serverSeed}</span></div>
+            {result.clientSeed && <>
+              <ServerSeedRow serverSeed={result.serverSeed} />
               <div><span className="text-[var(--muted)]">Client Seed: </span><span className="text-[var(--text)]">{result.clientSeed}</span></div>
+              {result.nonce !== undefined && (
+                <div><span className="text-[var(--muted)]">Nonce: </span><span className="text-[var(--text)]">{result.nonce}</span></div>
+              )}
             </>}
           </div>
         </details>

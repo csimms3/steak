@@ -10,6 +10,7 @@ import { useBalance } from "@/context/BalanceContext";
 import { useSettings } from "@/context/SettingsContext";
 import { handValue, type Card, type BlackjackHand, type BlackjackAction, type HandResult } from "@/lib/game-engine";
 import { cn } from "@/lib/cn";
+import { playFetch } from "@/lib/seed-client";
 
 interface StartResponse {
   playerCards: Card[]; dealerUpCard: Card; dealerCards?: Card[];
@@ -74,7 +75,7 @@ export default function BlackjackPage() {
     if (betAmount > balance || busy) return;
     setBusy(true);
     try {
-      const res = await fetch("/api/games/blackjack/start", {
+      const res = await playFetch("/api/games/blackjack/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ betAmount, clientSeed: settingsSeed }),
@@ -119,7 +120,7 @@ export default function BlackjackPage() {
     if ((!gameState && !gameToken) || busy) return;
     setBusy(true);
     try {
-      const res = await fetch("/api/games/blackjack/action", {
+      const res = await playFetch("/api/games/blackjack/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...(gameToken ? { token: gameToken } : { state: gameState }), action }),

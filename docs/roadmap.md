@@ -121,7 +121,7 @@ The remaining 5 games (Roulette, Baccarat, Cases, Scratch, Slots) are a clean co
 ## Backlog (v1.x+)
 
 - `/verify` page: recompute any past bet in the browser from its revealed seed pair (needs the engines ported from Node `crypto` to WebCrypto)
-- Round claim TTL: a round abandoned mid-game keeps its bet reserved until the player rotates their seed pair (which forfeits it); expire stale rounds automatically
+- Round claim TTL: a round abandoned mid-game keeps its bet reserved until the player rotates their seed pair (which forfeits it), and a round whose state save fails outright stays claimed (which blocks rotation too); expire stale rounds and claims automatically
 - Roulette, Baccarat, Cases, Scratch, Slots (remainder of v0.3.0's original 14)
 - Real-time multiplayer Crash (shared round, live broadcast) — the one gap v0.4.0's fix doesn't fully close
 - Bind the starting balance to the account: register reads it from the existing but unused `Settings` model instead of the hardcoded default and the client-supplied `startingBalance`

@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getMinesMultiplier } from "@/lib/game-engine";
 import { auth } from "@/auth";
-import { settleBet } from "@/lib/game-balance";
-import { claimRound, releaseRound, resolveRound } from "@/lib/game-engine/round-store";
+import { claimRound, releaseRound, settleRound } from "@/lib/game-engine/round-store";
+import { payloadSeedFields, playErrorResponse } from "@/lib/seeded-play";
 
 const schema = z
   .object({
@@ -17,6 +17,9 @@ interface MinesPayload {
   serverSeed: string;
   serverSeedHash: string;
   clientSeed: string;
+  /** Absent on rounds started before seed pairs (which always used nonce 0). */
+  nonce?: number;
+  seedPairId?: string;
   mineCount: number;
   minePositions: number[];
   betAmount: number;
@@ -59,37 +62,41 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No tiles revealed yet" }, { status: 400 });
   }
 
-  const { serverSeed, serverSeedHash, clientSeed, mineCount, minePositions, betAmount } = gameState;
+  const { serverSeed, clientSeed, mineCount, minePositions, betAmount } = gameState;
   const multiplier = getMinesMultiplier(mineCount, revealedCount);
   const profit = Math.floor(betAmount * (multiplier - 1));
 
   let balance: number | undefined;
   if (token) {
     const session = await auth();
-    balance = Number(
-      await settleBet({
-        userId: session!.user.id,
-        game: "mines",
-        betAmount: BigInt(betAmount),
-        profit: BigInt(profit),
-        multiplier,
-        serverSeed,
-        serverSeedHash,
-        clientSeed,
-        nonce: 0,
-        outcome: { minePositions, mineCount, revealedCount },
-        reserved: true,
-      })
-    );
-    await resolveRound(token);
+    try {
+      balance = Number(
+        await settleRound(token, {
+          userId: session!.user.id,
+          game: "mines",
+          betAmount: BigInt(betAmount),
+          profit: BigInt(profit),
+          multiplier,
+          ...payloadSeedFields({ ...gameState, nonce: gameState.nonce ?? 0 }),
+          outcome: { minePositions, mineCount, revealedCount },
+          reserved: true,
+        })
+      );
+    } catch (err) {
+      const res = playErrorResponse(err);
+      if (res) return res;
+      throw err;
+    }
   }
 
   return NextResponse.json({
     profit,
     multiplier,
     minePositions,
-    serverSeed,
+    // A pair's server seed is revealed only on rotation; guest and pre-seed-pair rounds reveal their own.
+    ...(gameState.seedPairId ? {} : { serverSeed }),
     clientSeed,
+    ...(gameState.nonce !== undefined ? { nonce: gameState.nonce } : {}),
     ...(balance !== undefined ? { balance } : {}),
   });
 }

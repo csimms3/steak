@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { dragonTowerClimb, type DragonTowerState } from "@/lib/game-engine";
 import { auth } from "@/auth";
-import { settleBet } from "@/lib/game-balance";
-import { claimRound, releaseRound, resolveRound } from "@/lib/game-engine/round-store";
+import { claimRound, releaseRound, settleRound } from "@/lib/game-engine/round-store";
+import { payloadSeedFields, hideSeed, playErrorResponse } from "@/lib/seeded-play";
 
-type DragonTowerRoundPayload = DragonTowerState & { serverSeedHash: string };
+type DragonTowerRoundPayload = DragonTowerState & { serverSeedHash: string; seedPairId?: string };
 
 const schema = z
   .object({
@@ -46,26 +46,29 @@ export async function POST(req: NextRequest) {
   // Still climbing — safe, tower not fully cleared.
   if (!result.cleared && result.safe) {
     const newPayload: DragonTowerState = JSON.parse(Buffer.from(result.state!, "base64").toString());
-    await releaseRound(token, { ...newPayload, serverSeedHash: round.payload.serverSeedHash });
+    await releaseRound(token, { ...round.payload, ...newPayload });
     return NextResponse.json({ ...result, state: undefined, token });
   }
 
   // Terminal — either hit a dragon (loss) or cleared all 9 rows (win).
-  const balance = Number(
-    await settleBet({
-      userId: session.user.id,
-      game: "dragon_tower",
-      betAmount: round.betAmount,
-      profit: BigInt(result.profit),
-      multiplier: result.multiplier,
-      serverSeed: result.serverSeed!,
-      serverSeedHash: round.payload.serverSeedHash,
-      clientSeed: round.payload.clientSeed,
-      nonce: round.payload.nonce,
-      outcome: { dragonCols: result.dragonCols, pickedCol: result.pickedCol, cleared: result.cleared },
-      reserved: true,
-    })
-  );
-  await resolveRound(token);
-  return NextResponse.json({ ...result, balance });
+  let balance: number;
+  try {
+    balance = Number(
+      await settleRound(token, {
+        userId: session.user.id,
+        game: "dragon_tower",
+        betAmount: round.betAmount,
+        profit: BigInt(result.profit),
+        multiplier: result.multiplier,
+        ...payloadSeedFields(round.payload),
+        outcome: { dragonCols: result.dragonCols, pickedCol: result.pickedCol, cleared: result.cleared },
+        reserved: true,
+      })
+    );
+  } catch (err) {
+    const res = playErrorResponse(err);
+    if (res) return res;
+    throw err;
+  }
+  return NextResponse.json({ ...hideSeed(round.payload, result), balance });
 }

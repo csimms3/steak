@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { videoPokerDraw, type VideoPokerState } from "@/lib/game-engine";
 import { auth } from "@/auth";
-import { settleBet } from "@/lib/game-balance";
-import { claimRound, resolveRound, toJsonValue } from "@/lib/game-engine/round-store";
+import { claimRound, releaseRound, settleRound, toJsonValue } from "@/lib/game-engine/round-store";
+import { payloadSeedFields, hideSeed, playErrorResponse } from "@/lib/seeded-play";
 
-type VideoPokerRoundPayload = VideoPokerState & { serverSeedHash: string };
+type VideoPokerRoundPayload = VideoPokerState & { serverSeedHash: string; seedPairId?: string };
 
 const schema = z
   .object({
@@ -36,24 +36,32 @@ export async function POST(req: NextRequest) {
 
   const encoded = Buffer.from(JSON.stringify(round.payload)).toString("base64");
   const result = videoPokerDraw(encoded, parsed.data.holds);
-  if ("error" in result) return NextResponse.json({ error: result.error }, { status: 400 });
+  if ("error" in result) {
+    // Non-terminal error: release the claim so the round stays playable
+    // instead of stuck claimed (which would also block seed rotation).
+    await releaseRound(token, round.payload);
+    return NextResponse.json({ error: result.error }, { status: 400 });
+  }
 
-  const balance = Number(
-    await settleBet({
-      userId: session.user.id,
-      game: "video_poker",
-      betAmount: round.betAmount,
-      profit: BigInt(result.profit),
-      multiplier: result.multiplier,
-      serverSeed: result.serverSeed,
-      serverSeedHash: round.payload.serverSeedHash,
-      clientSeed: round.payload.clientSeed,
-      nonce: round.payload.nonce,
-      outcome: toJsonValue({ finalHand: result.finalHand, category: result.category, holds: parsed.data.holds }),
-      reserved: true,
-    })
-  );
-  await resolveRound(token);
+  let balance: number;
+  try {
+    balance = Number(
+      await settleRound(token, {
+        userId: session.user.id,
+        game: "video_poker",
+        betAmount: round.betAmount,
+        profit: BigInt(result.profit),
+        multiplier: result.multiplier,
+        ...payloadSeedFields(round.payload),
+        outcome: toJsonValue({ finalHand: result.finalHand, category: result.category, holds: parsed.data.holds }),
+        reserved: true,
+      })
+    );
+  } catch (err) {
+    const res = playErrorResponse(err);
+    if (res) return res;
+    throw err;
+  }
 
-  return NextResponse.json({ ...result, balance });
+  return NextResponse.json({ ...hideSeed(round.payload, result), balance });
 }

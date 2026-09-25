@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { dragonTowerCashout, type DragonTowerState } from "@/lib/game-engine";
 import { auth } from "@/auth";
-import { settleBet } from "@/lib/game-balance";
-import { claimRound, releaseRound, resolveRound } from "@/lib/game-engine/round-store";
+import { claimRound, releaseRound, settleRound } from "@/lib/game-engine/round-store";
+import { payloadSeedFields, hideSeed, playErrorResponse } from "@/lib/seeded-play";
 
-type DragonTowerRoundPayload = DragonTowerState & { serverSeedHash: string };
+type DragonTowerRoundPayload = DragonTowerState & { serverSeedHash: string; seedPairId?: string };
 
 const schema = z
   .object({ state: z.string().optional(), token: z.string().optional() })
@@ -39,22 +39,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: result.error }, { status: 400 });
   }
 
-  const balance = Number(
-    await settleBet({
-      userId: session.user.id,
-      game: "dragon_tower",
-      betAmount: round.betAmount,
-      profit: BigInt(result.profit),
-      multiplier: result.multiplier,
-      serverSeed: result.serverSeed,
-      serverSeedHash: round.payload.serverSeedHash,
-      clientSeed: round.payload.clientSeed,
-      nonce: round.payload.nonce,
-      outcome: { currentRow: round.payload.currentRow, multiplier: result.multiplier },
-      reserved: true,
-    })
-  );
-  await resolveRound(token);
+  let balance: number;
+  try {
+    balance = Number(
+      await settleRound(token, {
+        userId: session.user.id,
+        game: "dragon_tower",
+        betAmount: round.betAmount,
+        profit: BigInt(result.profit),
+        multiplier: result.multiplier,
+        ...payloadSeedFields(round.payload),
+        outcome: { currentRow: round.payload.currentRow, multiplier: result.multiplier },
+        reserved: true,
+      })
+    );
+  } catch (err) {
+    const res = playErrorResponse(err);
+    if (res) return res;
+    throw err;
+  }
 
-  return NextResponse.json({ ...result, balance });
+  return NextResponse.json({ ...hideSeed(round.payload, result), balance });
 }

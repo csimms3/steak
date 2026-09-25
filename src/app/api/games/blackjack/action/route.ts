@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { blackjackAction, type BlackjackState } from "@/lib/game-engine";
 import { auth } from "@/auth";
-import { reserveBet, settleBet, InsufficientBalanceError } from "@/lib/game-balance";
-import { claimRound, releaseRound, resolveRound, toJsonValue } from "@/lib/game-engine/round-store";
+import { reserveBet, InsufficientBalanceError } from "@/lib/game-balance";
+import { claimRound, releaseRound, settleRound, toJsonValue } from "@/lib/game-engine/round-store";
+import { payloadSeedFields, hideSeed, playErrorResponse } from "@/lib/seeded-play";
 
-type BlackjackRoundPayload = BlackjackState & { serverSeedHash: string; totalReserved: number };
+type BlackjackRoundPayload = BlackjackState & { serverSeedHash: string; totalReserved: number; seedPairId?: string };
 
 const schema = z
   .object({
@@ -69,26 +70,29 @@ export async function POST(req: NextRequest) {
 
   if (result.stage === "player") {
     const newPayload: BlackjackState = JSON.parse(Buffer.from(result.state!, "base64").toString());
-    await releaseRound(token, { ...newPayload, serverSeedHash: round.payload.serverSeedHash, totalReserved });
+    await releaseRound(token, { ...round.payload, ...newPayload, totalReserved });
     return NextResponse.json({ ...result, state: undefined, token });
   }
 
   // Terminal — dealer played out, all hands settled.
-  const balance = Number(
-    await settleBet({
-      userId: session.user.id,
-      game: "blackjack",
-      betAmount: BigInt(totalReserved),
-      profit: BigInt(result.profit!),
-      multiplier: 0,
-      serverSeed: result.serverSeed!,
-      serverSeedHash: round.payload.serverSeedHash,
-      clientSeed: round.payload.clientSeed,
-      nonce: round.payload.nonce,
-      outcome: toJsonValue({ results: result.results, dealerCards: result.dealerCards }),
-      reserved: true,
-    })
-  );
-  await resolveRound(token);
-  return NextResponse.json({ ...result, balance });
+  let balance: number;
+  try {
+    balance = Number(
+      await settleRound(token, {
+        userId: session.user.id,
+        game: "blackjack",
+        betAmount: BigInt(totalReserved),
+        profit: BigInt(result.profit!),
+        multiplier: 0,
+        ...payloadSeedFields(round.payload),
+        outcome: toJsonValue({ results: result.results, dealerCards: result.dealerCards }),
+        reserved: true,
+      })
+    );
+  } catch (err) {
+    const res = playErrorResponse(err);
+    if (res) return res;
+    throw err;
+  }
+  return NextResponse.json({ ...hideSeed(round.payload, result), balance });
 }

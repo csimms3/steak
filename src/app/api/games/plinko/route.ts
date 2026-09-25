@@ -8,8 +8,8 @@ import {
   type PlinkoRisk,
 } from "@/lib/game-engine";
 import { auth } from "@/auth";
-import { prisma } from "@/lib/db";
 import { InsufficientBalanceError } from "@/lib/game-balance";
+import { withSeeds, pairFields, playErrorResponse } from "@/lib/seeded-play";
 
 const schema = z.object({
   betAmount: z.number().int().min(100).max(10_000_00),
@@ -27,70 +27,73 @@ export async function POST(req: NextRequest) {
   }
 
   const { betAmount, rows, risk, count, clientSeed: suppliedClient } = parsed.data;
-
-  const results = Array.from({ length: count }, (_, i) => {
-    const serverSeed = generateServerSeed();
-    const clientSeed = suppliedClient ?? generateClientSeed();
-    const serverSeedHash = hashServerSeed(serverSeed);
-    const result = resolvePlinko(serverSeed, clientSeed, i, BigInt(betAmount), rows, risk as PlinkoRisk);
-
-    return {
-      path: result.path,
-      bucketIndex: result.bucketIndex,
-      multiplier: result.multiplier,
-      profit: Number(result.profit),
-      serverSeed,
-      serverSeedHash,
-      clientSeed,
-      nonce: i,
-    };
+  const drop = (serverSeed: string, clientSeed: string, nonce: number) =>
+    resolvePlinko(serverSeed, clientSeed, nonce, BigInt(betAmount), rows, risk as PlinkoRisk);
+  const view = (r: ReturnType<typeof drop>) => ({
+    path: r.path,
+    bucketIndex: r.bucketIndex,
+    multiplier: r.multiplier,
+    profit: Number(r.profit),
   });
 
+  // Account holders: every ball is its own bet with its own nonce from the
+  // active seed pair, all allocated and settled in one transaction. The server
+  // seed stays secret until they rotate.
   const session = await auth();
-  let balance: number | undefined;
   if (session?.user?.id) {
     const userId = session.user.id;
-    const totalBet = BigInt(betAmount) * BigInt(count);
-    const totalProfit = results.reduce((sum, r) => sum + BigInt(r.profit), 0n);
-
     try {
-      balance = Number(
-        await prisma.$transaction(async (tx) => {
-          const guard = await tx.user.updateMany({
-            where: { id: userId, balance: { gte: totalBet } },
-            data: { balance: { increment: totalProfit } },
-          });
-          if (guard.count === 0) throw new InsufficientBalanceError();
+      const { results, balance } = await withSeeds(userId, count, async (tx, seeds) => {
+        const balls = Array.from({ length: count }, (_, i) => ({
+          seed: pairFields(seeds, i),
+          result: drop(seeds.serverSeed, seeds.clientSeed, seeds.firstNonce + i),
+        }));
+        const totalBet = BigInt(betAmount) * BigInt(count);
+        const totalProfit = balls.reduce((sum, b) => sum + b.result.profit, 0n);
 
-          await tx.gameSession.createMany({
-            data: results.map((r) => ({
-              userId,
-              game: "plinko" as const,
-              betAmount: BigInt(betAmount),
-              profit: BigInt(r.profit),
-              multiplier: r.multiplier,
-              serverSeed: r.serverSeed,
-              serverSeedHash: r.serverSeedHash,
-              clientSeed: r.clientSeed,
-              nonce: r.nonce,
-              outcome: { bucketIndex: r.bucketIndex, rows, risk },
-            })),
-          });
+        const guard = await tx.user.updateMany({
+          where: { id: userId, balance: { gte: totalBet } },
+          data: { balance: { increment: totalProfit } },
+        });
+        if (guard.count === 0) throw new InsufficientBalanceError();
 
-          const user = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { balance: true } });
-          return user.balance;
-        })
-      );
+        await tx.gameSession.createMany({
+          data: balls.map((b) => ({
+            userId,
+            game: "plinko" as const,
+            betAmount: BigInt(betAmount),
+            profit: b.result.profit,
+            multiplier: b.result.multiplier,
+            ...b.seed,
+            outcome: { bucketIndex: b.result.bucketIndex, rows, risk },
+          })),
+        });
+
+        const user = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { balance: true } });
+        return {
+          results: balls.map((b) => ({
+            ...view(b.result),
+            serverSeedHash: b.seed.serverSeedHash,
+            clientSeed: b.seed.clientSeed,
+            nonce: b.seed.nonce,
+          })),
+          balance: user.balance,
+        };
+      });
+      return NextResponse.json({ results, balance: Number(balance) });
     } catch (err) {
-      if (err instanceof InsufficientBalanceError) {
-        return NextResponse.json({ error: "Insufficient balance" }, { status: 400 });
-      }
+      const res = playErrorResponse(err);
+      if (res) return res;
       throw err;
     }
   }
 
-  return NextResponse.json({
-    results,
-    ...(balance !== undefined ? { balance } : {}),
+  // Guest: a throwaway seed per ball, revealed immediately. Recomputable, but not
+  // provably fair (nothing was committed before the bet).
+  const results = Array.from({ length: count }, (_, i) => {
+    const serverSeed = generateServerSeed();
+    const clientSeed = suppliedClient ?? generateClientSeed();
+    return { ...view(drop(serverSeed, clientSeed, i)), serverSeed, serverSeedHash: hashServerSeed(serverSeed), clientSeed, nonce: i };
   });
+  return NextResponse.json({ results });
 }

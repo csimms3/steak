@@ -43,24 +43,54 @@ const gameRoundModel = {
     rounds.delete(where.id);
     return { ...round };
   }),
+  // settleRound's guarded delete: only a round that is still claimed.
+  deleteMany: jest.fn(async ({ where }: { where: { id: string; claimedAt: { not: null } } }) => {
+    const round = rounds.get(where.id);
+    if (!round || round.claimedAt === null) return { count: 0 };
+    rounds.delete(where.id);
+    return { count: 1 };
+  }),
+};
+
+// Just enough for settleBet's reserved path, which settleRound calls.
+const balances = new Map<string, bigint>();
+const settled: unknown[] = [];
+const userModel = {
+  update: jest.fn(async ({ where, data }: { where: { id: string }; data: { balance: { increment: bigint } } }) => {
+    const balance = (balances.get(where.id) ?? 0n) + data.balance.increment;
+    balances.set(where.id, balance);
+    return { id: where.id, balance };
+  }),
+};
+const gameSessionModel = {
+  create: jest.fn(async ({ data }: { data: unknown }) => {
+    settled.push(data);
+    return data;
+  }),
 };
 
 interface FakePrismaClient {
   gameRound: typeof gameRoundModel;
+  user: typeof userModel;
+  gameSession: typeof gameSessionModel;
   $transaction: (fn: (tx: FakePrismaClient) => Promise<unknown>) => Promise<unknown>;
 }
 
 const fakePrisma: FakePrismaClient = {
   gameRound: gameRoundModel,
+  user: userModel,
+  gameSession: gameSessionModel,
   $transaction: jest.fn(async (fn: (tx: FakePrismaClient) => Promise<unknown>) => fn(fakePrisma)),
 };
 
 jest.mock("@/lib/db", () => ({ prisma: fakePrisma }));
 
-import { claimRound, releaseRound, resolveRound } from "../lib/game-engine/round-store";
+import { claimRound, releaseRound, resolveRound, settleRound, RoundGoneError } from "../lib/game-engine/round-store";
 
 beforeEach(() => {
   rounds.clear();
+  balances.clear();
+  settled.length = 0;
   jest.clearAllMocks();
 });
 
@@ -111,5 +141,40 @@ describe("resolveRound", () => {
 
   test("is idempotent — resolving an already-deleted round does not throw", async () => {
     await expect(resolveRound("missing")).resolves.toBeUndefined();
+  });
+});
+
+describe("settleRound", () => {
+  const params = {
+    userId: "u1", game: "mines" as const, betAmount: 10_00n, profit: 5_00n, multiplier: 1.5,
+    serverSeed: "s", serverSeedHash: "h", clientSeed: "c", nonce: 3, outcome: {}, reserved: true, seedPairId: "p1",
+  };
+
+  test("deletes the claimed round and settles it in one step", async () => {
+    seedRound({ id: "r1", userId: "u1", betAmount: 10_00n, payload: {}, createdAt: new Date(), claimedAt: null });
+    await claimRound("r1", "u1");
+    await expect(settleRound("r1", params)).resolves.toBe(15_00n);
+    expect(rounds.has("r1")).toBe(false);
+    expect(settled).toEqual([expect.objectContaining({ nonce: 3, seedPairId: "p1" })]);
+  });
+
+  test("refuses a round that's gone (e.g. forfeited by a seed rotation) without settling", async () => {
+    await expect(settleRound("missing", params)).rejects.toBeInstanceOf(RoundGoneError);
+    expect(settled).toHaveLength(0);
+  });
+
+  test("refuses an unclaimed round, since only the claim holder may settle", async () => {
+    seedRound({ id: "r1", userId: "u1", betAmount: 10_00n, payload: {}, createdAt: new Date(), claimedAt: null });
+    await expect(settleRound("r1", params)).rejects.toBeInstanceOf(RoundGoneError);
+    expect(rounds.has("r1")).toBe(true);
+    expect(settled).toHaveLength(0);
+  });
+
+  test("a second settle of the same round fails, so it can't pay twice", async () => {
+    seedRound({ id: "r1", userId: "u1", betAmount: 10_00n, payload: {}, createdAt: new Date(), claimedAt: null });
+    await claimRound("r1", "u1");
+    await settleRound("r1", params);
+    await expect(settleRound("r1", params)).rejects.toBeInstanceOf(RoundGoneError);
+    expect(settled).toHaveLength(1);
   });
 });

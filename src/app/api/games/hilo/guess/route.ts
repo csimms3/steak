@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { hiloGuess, type HiloState } from "@/lib/game-engine";
 import { auth } from "@/auth";
-import { settleBet } from "@/lib/game-balance";
-import { claimRound, releaseRound, resolveRound } from "@/lib/game-engine/round-store";
+import { claimRound, releaseRound, settleRound } from "@/lib/game-engine/round-store";
+import { payloadSeedFields, hideSeed, playErrorResponse } from "@/lib/seeded-play";
 
-type HiloRoundPayload = HiloState & { serverSeedHash: string };
+type HiloRoundPayload = HiloState & { serverSeedHash: string; seedPairId?: string };
 
 const schema = z
   .object({
@@ -49,29 +49,32 @@ export async function POST(req: NextRequest) {
   if (result.state) {
     // Correct guess — round continues, persist the new position/multiplier.
     const newPayload: HiloState = JSON.parse(Buffer.from(result.state, "base64").toString());
-    await releaseRound(token, { ...newPayload, serverSeedHash: round.payload.serverSeedHash });
+    await releaseRound(token, { ...round.payload, ...newPayload });
     return NextResponse.json({ ...result, state: undefined, token });
   }
 
   // Bust — terminal, settle the loss.
-  const balance = Number(
-    await settleBet({
-      userId: session.user.id,
-      game: "hilo",
-      betAmount: round.betAmount,
-      profit: BigInt(result.profit),
-      multiplier: 0,
-      serverSeed: result.serverSeed!,
-      serverSeedHash: round.payload.serverSeedHash,
-      clientSeed: round.payload.clientSeed,
-      nonce: round.payload.nonce,
-      outcome: {
-        prevCard: { rank: result.prevCard.rank, suit: result.prevCard.suit },
-        nextCard: { rank: result.nextCard.rank, suit: result.nextCard.suit },
-      },
-      reserved: true,
-    })
-  );
-  await resolveRound(token);
-  return NextResponse.json({ ...result, balance });
+  let balance: number;
+  try {
+    balance = Number(
+      await settleRound(token, {
+        userId: session.user.id,
+        game: "hilo",
+        betAmount: round.betAmount,
+        profit: BigInt(result.profit),
+        multiplier: 0,
+        ...payloadSeedFields(round.payload),
+        outcome: {
+          prevCard: { rank: result.prevCard.rank, suit: result.prevCard.suit },
+          nextCard: { rank: result.nextCard.rank, suit: result.nextCard.suit },
+        },
+        reserved: true,
+      })
+    );
+  } catch (err) {
+    const res = playErrorResponse(err);
+    if (res) return res;
+    throw err;
+  }
+  return NextResponse.json({ ...hideSeed(round.payload, result), balance });
 }

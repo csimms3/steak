@@ -15,7 +15,7 @@
 | Mines — interactive grid reveal with incremental cashout | ✅ Done |
 | Plinko — animated ball drop with row-based multiplier | ✅ Done |
 | Crash — cash out before it crashes | ✅ Done, **single-player** (see below) |
-| Per-bet provably fair verification | ✅ Done |
+| Per-bet provably fair verification | ✅ Done for account holders (v0.5.0); guest bets are recomputable only |
 | Balance history / recent bet feed per player | ✅ Done (v0.4.0, `/history`) |
 | GitHub Actions CI (lint, typecheck, test) | ✅ Done |
 | Docker Compose for local development | ✅ Done, Postgres only — no WS/Redis services (see `docs/architecture.md` ADR-001) |
@@ -82,6 +82,24 @@ The remaining 5 games (Roulette, Baccarat, Cases, Scratch, Slots) are a clean co
 
 ---
 
+## v0.5.0 — Provably Fair Seed Pairs
+
+**Goal**: Make account-holder outcomes actually provably fair. Until this release every route generated its server seed in the same request that received the bet and client seed, so nothing proved the seed wasn't chosen with them in view.
+**Status**: Done.
+
+### Features
+- Per-player committed seed pair (`SeedPair`): next seed committed at registration, activated with a player-chosen fresh client seed, one nonce per bet, revealed on rotation (ADR-003)
+- Cursor-based RNG: multi-float games draw by cursor under one nonce, so consecutive bets share no randomness
+- All 13 games resolve account-holder bets on the pair. Terminal settles are one transaction with the round delete (`settleRound`)
+- Settings → Seed Pair panel, first-bet auto-activation, hidden-until-rotation seed display, history reveal
+
+### Done when
+- ✅ A played bet's outcome recomputes exactly from the revealed seed, and `SHA256(revealed) ==` the hash committed before the client seed was chosen (verified end-to-end for dice, Mines and Crash against Postgres)
+- ✅ Nonces stay unique and contiguous under 20 concurrent bets
+- ✅ Every grinding shortcut raised in review is closed (ADR-003, "Rejected shortcuts")
+
+---
+
 ## v1.0.0 — Stable Release
 
 **Goal**: Production-ready. Stable public API. Full documentation. Breaking changes require a major version bump from this point.
@@ -102,7 +120,8 @@ The remaining 5 games (Roulette, Baccarat, Cases, Scratch, Slots) are a clean co
 
 ## Backlog (v1.x+)
 
-- **Provably fair outcomes: per-player committed seed pair.** Today no game commits before the bet: every route generates `serverSeed` in the same request that receives the bet and client seed. The 6 stateful games only bind the seed for the rest of the round (a Blackjack natural doesn't even get that), and the 7 stateless games reveal the hash and the seed with the result (see ADR-003 in `docs/architecture.md`). Scope: a seed-pair record per user (`serverSeed`, `clientSeed`, `nonce`); `GET` for the current `SHA256(serverSeed)`; stateless routes consume the active pair and increment the nonce instead of generating a fresh seed per bet; a rotate endpoint reveals the old seed and commits a new one; `/history` links each bet to its pair. Guest mode needs a decision (session-scoped pair, or keep the current behaviour and label it)
+- `/verify` page: recompute any past bet in the browser from its revealed seed pair (needs the engines ported from Node `crypto` to WebCrypto)
+- Round claim TTL: a round abandoned mid-game keeps its bet reserved until the player rotates their seed pair (which forfeits it); expire stale rounds automatically
 - Roulette, Baccarat, Cases, Scratch, Slots (remainder of v0.3.0's original 14)
 - Real-time multiplayer Crash (shared round, live broadcast) — the one gap v0.4.0's fix doesn't fully close
 - Bind the starting balance to the account: register reads it from the existing but unused `Settings` model instead of the hardcoded default and the client-supplied `startingBalance`

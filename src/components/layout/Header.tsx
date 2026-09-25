@@ -20,7 +20,7 @@ export function Header() {
         STEAK
       </Link>
 
-      {/* Wallet — fused balance + reset, centered like Stake's wallet control */}
+      {/* Wallet — fused balance + reset, centered wallet control */}
       <div className="absolute left-1/2 -translate-x-1/2 flex items-stretch">
         <div className="flex items-center gap-2 bg-[var(--bg)] border border-[var(--border)] border-r-0 rounded-l-lg px-3.5 py-1.5">
           <Wallet size={14} className="text-[var(--accent-2)]" />

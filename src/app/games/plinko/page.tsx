@@ -37,7 +37,7 @@ const bucketY = (rows: number) => TOP_Y + rows * rowH(rows) + 8;
 // before the animation runs. So rather than simulate loose collisions — which
 // drift and snap unpredictably — we precompute the exact peg centres the ball
 // visits and animate each hop as a real projectile arc whose launch velocity is
-// solved to land precisely on the next peg. This mirrors Stake: deterministic
+// solved to land precisely on the next peg. This mirrors the genre standard: deterministic
 // landing, but a smooth, physical-looking fall with a consistent little bounce.
 
 const GRAVITY = 0.22;   // px / frame² — sets the overall fall pace

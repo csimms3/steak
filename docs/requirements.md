@@ -4,11 +4,11 @@
 
 ## Problem Statement
 
-Steak is a play-money social casino that replicates the look, feel, and game library of Stake.com — without any real wagering. Players sign in, receive a configurable virtual chip balance, and play provably fair originals: Crash, Mines, Plinko, and Dice. It exists as a self-contained demo and party-game platform where there is no payment processing, no legal exposure, and no third-party casino SDK required. "Working" means: a player can register, receive a starting balance (configurable globally in settings), play all four games, and see wins and losses reflected in real time.
+Steak is a play-money social casino that offers a library of classic casino-style games with no real wagering. Players sign in, receive a configurable virtual chip balance, and play provably fair originals: Crash, Mines, Plinko, and Dice. It exists as a self-contained demo and party-game platform where there is no payment processing, no legal exposure, and no third-party casino SDK required. "Working" means: a player can register, receive a starting balance (configurable globally in settings), play all four games, and see wins and losses reflected in real time.
 
 ## Users
 
-- **Primary**: Players — individuals who want to experience Stake-style casino games with no financial risk; includes developers evaluating the platform and friends playing at a party or event.
+- **Primary**: Players — individuals who want to play casino-style games with no financial risk; includes developers evaluating the platform and friends playing at a party or event.
 - **Secondary**: Admin — the operator who configures the starting balance, can top up individual accounts, and monitors activity.
 
 ## Functional Requirements
@@ -17,7 +17,7 @@ Steak is a play-money social casino that replicates the look, feel, and game lib
 
 - [ ] As a player, I want to register and log in with a username and password so that my balance persists across sessions.
 - [ ] As a player, I want to receive a starting chip balance on account creation so that I can play immediately without any setup.
-- [ ] As a player, I want to play Crash — a multiplier game where I cash out before the rocket crashes — so that I can experience the signature Stake game in real time with other players.
+- [ ] As a player, I want to play Crash — a multiplier game where I cash out before the rocket crashes — so that I can experience the signature multiplier game in real time with other players.
 - [ ] As a player, I want to play Mines — choose tiles on a grid while avoiding hidden mines — so that I can take incremental risk for incremental reward.
 - [ ] As a player, I want to play Plinko — drop a ball down a pegged board — so that I can enjoy the satisfying visual RNG mechanic.
 - [ ] As a player, I want to play Dice — predict whether the roll will be over or under a target — so that I can make precise, probability-driven bets.
@@ -52,7 +52,7 @@ This project will NOT:
 - Offer slots or live dealer games — those require third-party provider integrations far outside MVP scope.
 - Provide a native mobile app — the web app will be responsive, but no React Native or Expo project.
 - Support multi-currency or multi-language in v0.1.0.
-- Implement a real-time chat system (chat is a Stake staple but is a full product in itself).
+- Implement a real-time chat system (chat is a genre staple but is a full product in itself).
 
 ## Scope
 

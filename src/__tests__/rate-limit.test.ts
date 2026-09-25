@@ -25,16 +25,45 @@ describe("createRateLimiter", () => {
     expect(limiter.check("a").ok).toBe(false);
     expect(limiter.check("b").ok).toBe(true);
   });
+
+  it("never tracks more than maxKeys, evicting the oldest live window", () => {
+    const limiter = createRateLimiter({ limit: 1, windowMs: 1000, maxKeys: 2, now });
+    limiter.check("a");
+    t = 1;
+    limiter.check("b");
+    t = 2;
+    limiter.check("c"); // full: evicts "a"
+    expect(limiter.check("b").ok).toBe(false); // still tracked
+    expect(limiter.check("a").ok).toBe(true); // fresh window; evicts "b"
+    expect(limiter.check("c").ok).toBe(false);
+  });
+
+  it("sweeps expired windows before evicting live ones", () => {
+    const limiter = createRateLimiter({ limit: 1, windowMs: 1000, maxKeys: 2, now });
+    limiter.check("a");
+    t = 500;
+    limiter.check("b");
+    t = 1200; // "a" has expired, "b" is live
+    limiter.check("c"); // drops expired "a", keeps "b"
+    expect(limiter.check("b").ok).toBe(false);
+  });
 });
 
 describe("clientIp", () => {
-  it("uses the last X-Forwarded-For entry, ignoring client-supplied ones", () => {
-    expect(clientIp(new Headers({ "x-forwarded-for": "6.6.6.6, 1.2.3.4" }))).toBe("1.2.3.4");
-    expect(clientIp(new Headers({ "x-forwarded-for": "1.2.3.4" }))).toBe("1.2.3.4");
+  const xff = (v: string) => new Headers({ "x-forwarded-for": v });
+
+  it("ignores forwarding headers when no trusted proxy is configured", () => {
+    expect(clientIp(xff("1.2.3.4"), 0)).toBe("unknown");
+    expect(clientIp(new Headers({ "x-real-ip": "1.2.3.4" }), 1)).toBe("unknown");
   });
 
-  it("falls back to X-Real-IP, then a shared bucket", () => {
-    expect(clientIp(new Headers({ "x-real-ip": "5.6.7.8" }))).toBe("5.6.7.8");
-    expect(clientIp(new Headers())).toBe("unknown");
+  it("takes the entry added by the outermost trusted proxy, ignoring client-supplied ones", () => {
+    expect(clientIp(xff("6.6.6.6, 1.2.3.4"), 1)).toBe("1.2.3.4");
+    expect(clientIp(xff("6.6.6.6, 1.2.3.4, 10.0.0.1"), 2)).toBe("1.2.3.4");
+  });
+
+  it("falls back to the shared bucket when the header is missing or too short", () => {
+    expect(clientIp(new Headers(), 1)).toBe("unknown");
+    expect(clientIp(xff("1.2.3.4"), 2)).toBe("unknown");
   });
 });

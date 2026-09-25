@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
 
 const PAGE_SIZE = 20;
+// Anything malformed (?page=abc, -1, 1.5, huge) falls back to the first page
+// instead of reaching Prisma as NaN / out-of-range and 500ing.
+const pageSchema = z.coerce.number().int().min(0).max(10_000).catch(0);
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -10,7 +14,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const page = Math.max(0, Number(req.nextUrl.searchParams.get("page") ?? 0));
+  const page = pageSchema.parse(req.nextUrl.searchParams.get("page") ?? 0);
 
   const sessions = await prisma.gameSession.findMany({
     where: { userId: session.user.id },

@@ -96,6 +96,7 @@ const fakePrisma = {
     }),
   },
   gameSession: {
+    findFirst: jest.fn(async ({ where }: { where: Where }) => sessions.find((row) => matches(row, where)) ?? null),
     create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => {
       sessions.push(data);
       return data;
@@ -120,6 +121,7 @@ import {
   SeedsNotReadyError,
   NoActiveSeedPairError,
   ClientSeedReusedError,
+  NextSeedMismatchError,
 } from "@/lib/seed-pair";
 import type { Tx } from "@/lib/game-balance";
 
@@ -134,10 +136,16 @@ beforeEach(() => {
   balances.set("u1", 99_000n);
 });
 
+/** Rotates the way a well-behaved client does: echoing the next hash it was shown. */
+function rotate(clientSeed: string) {
+  const next = pairs.find((p) => p.userId === "u1" && p.status === "next");
+  return rotateSeedPair("u1", clientSeed, next?.serverSeedHash ?? "0".repeat(64));
+}
+
 /** Commits a next pair (as registration or a GET would), then activates it. */
 async function activate(clientSeed = "player-seed") {
   await getSeedState("u1");
-  return rotateSeedPair("u1", clientSeed);
+  return rotate(clientSeed);
 }
 
 describe("getSeedState", () => {
@@ -188,23 +196,39 @@ describe("allocateNonces", () => {
 
 describe("rotateSeedPair", () => {
   test("refuses when no next seed was committed by an earlier request, and creates nothing", async () => {
-    await expect(rotateSeedPair("u1", "player-seed")).rejects.toBeInstanceOf(SeedsNotReadyError);
+    await expect(rotate("player-seed")).rejects.toBeInstanceOf(SeedsNotReadyError);
     expect(pairs).toHaveLength(0);
     await getSeedState("u1"); // a plain GET commits the next seed
-    await expect(rotateSeedPair("u1", "fresh-seed")).resolves.toMatchObject({ revealed: null });
+    await expect(rotate("fresh-seed")).resolves.toMatchObject({ revealed: null });
+  });
+
+  test("refuses unless the client echoes the committed next hash it was shown", async () => {
+    await getSeedState("u1");
+    await expect(rotateSeedPair("u1", "fresh", "a".repeat(64))).rejects.toBeInstanceOf(NextSeedMismatchError);
+    expect(pairs.map((p) => p.status)).toEqual(["next"]);
+    await expect(rotate("fresh")).resolves.toMatchObject({ revealed: null });
+  });
+
+  test("rejects a client seed already recorded on a past bet or an open round", async () => {
+    await getSeedState("u1");
+    sessions.push({ userId: "u1", clientSeed: "used-in-a-bet" });
+    rounds.push({ id: "r9", userId: "u1", game: "mines", betAmount: 100n, claimedAt: null, payload: { clientSeed: "in-open-round" } });
+    await expect(rotate("used-in-a-bet")).rejects.toBeInstanceOf(ClientSeedReusedError);
+    await expect(rotate("in-open-round")).rejects.toBeInstanceOf(ClientSeedReusedError);
+    await expect(rotate("never-seen")).resolves.toBeDefined();
   });
 
   test("rejects a client seed this user has used before, on any pair", async () => {
     await activate("seed-a");
-    await expect(rotateSeedPair("u1", "seed-a")).rejects.toBeInstanceOf(ClientSeedReusedError);
-    await rotateSeedPair("u1", "seed-b");
-    await expect(rotateSeedPair("u1", "seed-a")).rejects.toBeInstanceOf(ClientSeedReusedError); // now on a revealed pair
-    await expect(rotateSeedPair("u1", "seed-c")).resolves.toBeDefined();
+    await expect(rotate("seed-a")).rejects.toBeInstanceOf(ClientSeedReusedError);
+    await rotate("seed-b");
+    await expect(rotate("seed-a")).rejects.toBeInstanceOf(ClientSeedReusedError); // now on a revealed pair
+    await expect(rotate("seed-c")).resolves.toBeDefined();
   });
 
   test("first activation pairs the pre-committed next seed with the player's client seed", async () => {
     const before = await getSeedState("u1");
-    const { revealed, state } = await rotateSeedPair("u1", "my-own-seed");
+    const { revealed, state } = await rotate("my-own-seed");
     expect(revealed).toBeNull();
     expect(state.active).toMatchObject({ serverSeedHash: before.nextServerSeedHash, clientSeed: "my-own-seed", nonce: 0 });
     expect(state.nextServerSeedHash).not.toBe(before.nextServerSeedHash);
@@ -215,7 +239,7 @@ describe("rotateSeedPair", () => {
     await allocateNonces(tx, "u1", 4);
     const before = await getSeedState("u1");
 
-    const { revealed, state } = await rotateSeedPair("u1", "second-seed");
+    const { revealed, state } = await rotate("second-seed");
 
     expect(sha256(revealed!.serverSeed)).toBe(before.active!.serverSeedHash);
     expect(revealed!.nonce).toBe(4);
@@ -226,9 +250,9 @@ describe("rotateSeedPair", () => {
 
   test("requires a well-formed client seed", async () => {
     await getSeedState("u1");
-    await expect(rotateSeedPair("u1", "has:colon")).rejects.toThrow("invalid client seed");
-    await expect(rotateSeedPair("u1", "x".repeat(65))).rejects.toThrow("invalid client seed");
-    await expect(rotateSeedPair("u1", "")).rejects.toThrow("invalid client seed");
+    await expect(rotate("has:colon")).rejects.toThrow("invalid client seed");
+    await expect(rotate("x".repeat(65))).rejects.toThrow("invalid client seed");
+    await expect(rotate("")).rejects.toThrow("invalid client seed");
   });
 
   test("forfeits open rounds on the revealed pair as losses, leaving other rounds alone", async () => {
@@ -239,7 +263,7 @@ describe("rotateSeedPair", () => {
       { id: "legacy", userId: "u1", game: "hilo", betAmount: 500n, claimedAt: null, payload: { serverSeed: "own-seed" } },
     );
 
-    const { forfeited, revealed } = await rotateSeedPair("u1", "next-seed");
+    const { forfeited, revealed } = await rotate("next-seed");
 
     expect(forfeited).toBe(1);
     expect(rounds.map((r) => r.id)).toEqual(["legacy"]);
@@ -255,6 +279,6 @@ describe("rotateSeedPair", () => {
     await activate();
     const activeId = pairs.find((p) => p.status === "active")!.id;
     rounds.push({ id: "r1", userId: "u1", game: "mines", betAmount: 1000n, payload: { seedPairId: activeId }, claimedAt: new Date(Date.now() - 60 * 60_000) });
-    await expect(rotateSeedPair("u1", "next-seed")).rejects.toBeInstanceOf(RotationBusyError);
+    await expect(rotate("next-seed")).rejects.toBeInstanceOf(RotationBusyError);
   });
 });

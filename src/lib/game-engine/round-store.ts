@@ -75,6 +75,20 @@ export async function releaseRound(
   });
 }
 
+/**
+ * Clears a round's claim without touching its payload, only if it's still
+ * claimed. For failure paths: if the failed-looking operation actually
+ * committed (lost acknowledgement), the round is already unclaimed or gone, so
+ * this is a no-op instead of writing stale state back over it.
+ */
+export async function unclaimRound(token: string): Promise<void> {
+  await prisma.gameRound
+    .updateMany({ where: { id: token, claimedAt: { not: null } }, data: { claimedAt: null } })
+    .catch(() => {
+      // Best effort: callers are already handling a more important error.
+    });
+}
+
 /** The round was already settled or forfeited (e.g. by a seed rotation) before this request could settle it. */
 export class RoundGoneError extends Error {
   constructor() {
@@ -109,13 +123,7 @@ export async function settleRound(token: string, params: SettleParams, extraRese
       return settleBet(params, tx);
     });
   } catch (err) {
-    if (!(err instanceof RoundGoneError)) {
-      await prisma.gameRound
-        .updateMany({ where: { id: token, claimedAt: { not: null } }, data: { claimedAt: null } })
-        .catch(() => {
-          // Best effort: the original error is the one worth surfacing.
-        });
-    }
+    if (!(err instanceof RoundGoneError)) await unclaimRound(token);
     throw err;
   }
 }

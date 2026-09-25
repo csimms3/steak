@@ -4,7 +4,7 @@ import { blackjackAction, type BlackjackState } from "@/lib/game-engine";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
 import { reserveBet } from "@/lib/game-balance";
-import { claimRound, releaseRound, settleRound, toJsonValue } from "@/lib/game-engine/round-store";
+import { claimRound, releaseRound, settleRound, unclaimRound, toJsonValue } from "@/lib/game-engine/round-store";
 import { payloadSeedFields, hideSeed, playErrorResponse } from "@/lib/seeded-play";
 
 type BlackjackRoundPayload = BlackjackState & { serverSeedHash: string; totalReserved: number; seedPairId?: string };
@@ -74,9 +74,11 @@ export async function POST(req: NextRequest) {
         await releaseRound(token, { ...round.payload, ...newPayload, totalReserved }, tx);
       });
     } catch (err) {
-      // Nothing was committed: unclaim the round in its pre-action state so the
-      // player can pick another move (e.g. after "Insufficient balance").
-      await releaseRound(token, round.payload).catch(() => {});
+      // Nothing was committed, so the round still holds its pre-action state:
+      // just unclaim it so the player can pick another move (e.g. after
+      // "Insufficient balance"). unclaimRound never rewrites the payload, so
+      // if the transaction did commit after all, nothing gets reverted.
+      await unclaimRound(token);
       const res = playErrorResponse(err);
       if (res) return res;
       throw err;

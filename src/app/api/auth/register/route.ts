@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { registerLimiter, clientIp } from "@/lib/rate-limit";
+import { nextPairData } from "@/lib/seed-pair";
 
 const DEFAULT_STARTING_BALANCE = 100000; // $1000.00 in minor units, matches the schema default
 
@@ -39,6 +40,9 @@ export async function POST(req: NextRequest) {
         email,
         passwordHash,
         balance: BigInt(startingBalance ?? DEFAULT_STARTING_BALANCE),
+        // Commit the first server seed now, before the player has chosen a
+        // client seed or placed a bet (see src/lib/seed-pair.ts).
+        seedPairs: { create: nextPairData() },
       },
       select: { id: true, username: true },
     });

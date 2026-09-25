@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { getSeedState, getRevealedPairs } from "@/lib/seed-pair";
 
 // The player's current commitment (hashes only) plus recently revealed pairs.
+// `active` is null until the player activates a pair by choosing a client seed.
 export async function GET() {
   const session = await auth();
   if (!session?.user?.id) {
@@ -15,7 +16,7 @@ export async function GET() {
   ]);
 
   return NextResponse.json({
-    active: {
+    active: state.active && {
       serverSeedHash: state.active.serverSeedHash,
       clientSeed: state.active.clientSeed,
       nonce: state.active.nonce,

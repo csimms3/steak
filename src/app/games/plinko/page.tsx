@@ -302,6 +302,8 @@ interface PlinkoResult {
   serverSeed?: string;
   serverSeedHash: string;
   clientSeed: string;
+  /** Each ball is its own bet: logged-in balls take consecutive nonces. */
+  nonce: number;
 }
 
 export default function PlinkoPage() {
@@ -542,6 +544,7 @@ export default function PlinkoPage() {
             <ServerSeedRow serverSeed={lastResult.serverSeed} />
             <div><span>Hash: </span><span className="text-[var(--text)]">{lastResult.serverSeedHash}</span></div>
             <div><span>Client Seed: </span><span className="text-[var(--text)]">{lastResult.clientSeed}</span></div>
+            <div><span>Nonce: </span><span className="text-[var(--text)]">{lastResult.nonce}</span></div>
             <div><span>Path: </span><span className="text-[var(--text)]">{lastResult.path.join("")}</span></div>
           </div>
         </details>

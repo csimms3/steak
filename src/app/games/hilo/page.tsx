@@ -19,7 +19,7 @@ interface StartResponse {
 interface GuessResponse {
   correct: boolean; prevCard: Card; nextCard: Card;
   multiplier: number; currentProfit: number; profit: number;
-  state: string | null; token?: string; serverSeed: string | null; balance?: number;
+  state: string | null; token?: string; serverSeed?: string | null; balance?: number;
 }
 interface CashoutResponse { multiplier: number; profit: number; serverSeed?: string; balance?: number; }
 
@@ -54,7 +54,6 @@ interface GameOverState {
   profit: number;
   /** Absent for logged-in rounds until the seed pair is rotated. */
   serverSeed?: string;
-  clientSeed: string;
   serverSeedHash: string;
   multiplier: number;
 }
@@ -77,7 +76,6 @@ export default function HiloPage() {
   // The round's own client seed and nonce, from the start response: for a
   // logged-in player that's the seed pair's, not the local settings seed.
   const [roundSeed, setRoundSeed] = useState({ clientSeed: "", nonce: 0 });
-  const [clientSeed, setClientSeed] = useState("");
 
   // Game over state
   const [over, setOver] = useState<GameOverState | null>(null);
@@ -101,7 +99,6 @@ export default function HiloPage() {
       setCurrentProfit(0);
       setServerSeedHash(data.serverSeedHash);
       setRoundSeed({ clientSeed: data.clientSeed, nonce: data.nonce ?? 0 });
-      setClientSeed(data.clientSeed);
       setOver(null);
       setPhase("playing");
     } finally {
@@ -124,7 +121,7 @@ export default function HiloPage() {
 
       if (!data.correct) {
         if (data.balance !== undefined) syncBalance(data.balance); else applyProfit(data.profit);
-        setOver({ win: false, profit: data.profit, serverSeed: data.serverSeed ?? undefined, clientSeed, serverSeedHash, multiplier });
+        setOver({ win: false, profit: data.profit, serverSeed: data.serverSeed ?? undefined, serverSeedHash, multiplier });
         setPhase("over");
         setGameState(null);
         setGameToken(null);
@@ -137,7 +134,7 @@ export default function HiloPage() {
     } finally {
       setBusy(false);
     }
-  }, [gameState, gameToken, currentCard, busy, applyProfit, syncBalance, clientSeed, serverSeedHash, multiplier]);
+  }, [gameState, gameToken, currentCard, busy, applyProfit, syncBalance, serverSeedHash, multiplier]);
 
   const cashout = useCallback(async () => {
     if ((!gameState && !gameToken) || busy || multiplier <= 1) return;
@@ -150,14 +147,14 @@ export default function HiloPage() {
       });
       const data: CashoutResponse = await res.json();
       if (data.balance !== undefined) syncBalance(data.balance); else applyProfit(data.profit);
-      setOver({ win: true, profit: data.profit, serverSeed: data.serverSeed, clientSeed, serverSeedHash, multiplier: data.multiplier });
+      setOver({ win: true, profit: data.profit, serverSeed: data.serverSeed, serverSeedHash, multiplier: data.multiplier });
       setPhase("over");
       setGameState(null);
       setGameToken(null);
     } finally {
       setBusy(false);
     }
-  }, [gameState, gameToken, busy, multiplier, applyProfit, syncBalance, clientSeed, serverSeedHash]);
+  }, [gameState, gameToken, busy, multiplier, applyProfit, syncBalance, serverSeedHash]);
 
   const reset = () => { setPhase("idle"); setCurrentCard(null); setHistory([]); setOver(null); };
 

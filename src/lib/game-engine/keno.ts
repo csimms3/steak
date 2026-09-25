@@ -5,7 +5,7 @@ import { generateOutcome } from "./rng";
  * Payout is determined by the number of hits (player picks that match draws).
  *
  * Fisher-Yates partial shuffle: at each step i we pick a random index from
- * the remaining pool, pull that tile out, and use nonce+i for the outcome.
+ * the remaining pool, pull that tile out, and use cursor i for the outcome.
  * This gives provably-fair, distinct draws.
  */
 
@@ -50,7 +50,7 @@ export function resolveKeno(
   const pool = Array.from({ length: 40 }, (_, i) => i + 1);
   const drawn: number[] = [];
   for (let i = 0; i < 10; i++) {
-    const r = generateOutcome(serverSeed, clientSeed, nonce + i);
+    const r = generateOutcome(serverSeed, clientSeed, nonce, i);
     const j = Math.floor(r * (40 - i));
     drawn.push(pool[j]);
     pool[j] = pool[39 - i];

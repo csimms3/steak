@@ -11,18 +11,18 @@ export interface MinesState {
 
 /**
  * Derives mine positions from the RNG outcome using a Fisher-Yates shuffle
- * seeded by successive HMAC outputs (nonce increments per position).
+ * seeded by successive HMAC outputs (one nonce, cursor increments per position).
  */
 export function generateMinePositions(
   serverSeed: string,
   clientSeed: string,
-  startNonce: number,
+  nonce: number,
   mineCount: number
 ): number[] {
   const positions = Array.from({ length: GRID_SIZE }, (_, i) => i);
 
   for (let i = GRID_SIZE - 1; i > 0; i--) {
-    const outcome = generateOutcome(serverSeed, clientSeed, startNonce + (GRID_SIZE - 1 - i));
+    const outcome = generateOutcome(serverSeed, clientSeed, nonce, GRID_SIZE - 1 - i);
     const j = Math.floor(outcome * (i + 1));
     [positions[i], positions[j]] = [positions[j], positions[i]];
   }

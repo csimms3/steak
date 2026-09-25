@@ -33,12 +33,12 @@ export interface PlinkoResult {
 }
 
 /**
- * Resolves a Plinko drop. Each row uses a successive nonce to get an L/R decision.
+ * Resolves a Plinko drop. Each row draws the next cursor under one nonce for its L/R decision.
  */
 export function resolvePlinko(
   serverSeed: string,
   clientSeed: string,
-  startNonce: number,
+  nonce: number,
   betAmount: bigint,
   rows: 8 | 12 | 16,
   risk: PlinkoRisk
@@ -47,7 +47,7 @@ export function resolvePlinko(
   let bucketIndex = 0;
 
   for (let row = 0; row < rows; row++) {
-    const outcome = generateOutcome(serverSeed, clientSeed, startNonce + row);
+    const outcome = generateOutcome(serverSeed, clientSeed, nonce, row);
     const direction = outcome < 0.5 ? "L" : "R";
     path.push(direction);
     if (direction === "R") bucketIndex++;

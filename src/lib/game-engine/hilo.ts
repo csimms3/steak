@@ -1,5 +1,5 @@
 import { shuffleDeck, type Card } from "./cards";
-import { hashServerSeed, generateServerSeed, generateClientSeed } from "./rng";
+import { hashServerSeed, freshSeeds, type SeedInput } from "./rng";
 
 /**
  * Hilo — guess whether each next card is higher or lower than the current one.
@@ -53,10 +53,8 @@ export interface HiloStartResult {
   clientSeed: string;
 }
 
-export function hiloStart(betAmount: number, suppliedClientSeed?: string): HiloStartResult {
-  const serverSeed = generateServerSeed();
-  const clientSeed = suppliedClientSeed ?? generateClientSeed();
-  const nonce = 0;
+export function hiloStart(betAmount: number, seeds: SeedInput = freshSeeds()): HiloStartResult {
+  const { serverSeed, clientSeed, nonce } = seeds;
 
   const deck = shuffleDeck(serverSeed, clientSeed, nonce);
   const card = deck[0];

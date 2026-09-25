@@ -4,11 +4,13 @@ import {
   hashServerSeed,
   generateOutcome,
   verifyBet,
+  freshSeeds,
 } from "../lib/game-engine/rng";
 import { resolveDice, getDiceMultiplier } from "../lib/game-engine/dice";
 import { getCrashPoint, resolveCrashBet } from "../lib/game-engine/crash";
 import { generateMinePositions, getMinesMultiplier, isMine } from "../lib/game-engine/mines";
 import { resolvePlinko, getMultiplierTable } from "../lib/game-engine/plinko";
+import { blackjackStart } from "../lib/game-engine/blackjack";
 
 // ─── RNG ────────────────────────────────────────────────────────────────────
 
@@ -219,7 +221,7 @@ describe("Plinko", () => {
 
   test("bucket index is within bounds", () => {
     for (let n = 0; n < 100; n++) {
-      const r = resolvePlinko(ss, cs, n * 8, 1000n, 8, "medium");
+      const r = resolvePlinko(ss, cs, n, 1000n, 8, "medium");
       expect(r.bucketIndex).toBeGreaterThanOrEqual(0);
       expect(r.bucketIndex).toBeLessThanOrEqual(8);
     }
@@ -236,5 +238,55 @@ describe("Plinko", () => {
     for (const dir of r.path) {
       expect(["L", "R"]).toContain(dir);
     }
+  });
+});
+
+// ─── Nonce / cursor protocol ────────────────────────────────────────────────
+
+describe("RNG message format", () => {
+  test("matches an independently computed HMAC-SHA256 vector", () => {
+    // Python: hmac.new(b"server-seed-fixture", b"client-seed-fixture:7:3", sha256)
+    //   → first 8 hex chars 17f02d3e → 0x17f02d3e / 2^32
+    expect(generateOutcome("server-seed-fixture", "client-seed-fixture", 7, 3)).toBe(0x17f02d3e / 0x100000000);
+  });
+
+  test("cursor defaults to 0", () => {
+    const ss = generateServerSeed();
+    const cs = generateClientSeed();
+    expect(generateOutcome(ss, cs, 5)).toBe(generateOutcome(ss, cs, 5, 0));
+  });
+
+  test("consecutive nonces share no floats, so one bet can't leak the next", () => {
+    // Under a persistent seed pair, the old `nonce + offset` scheme made bet n+1's
+    // 52-card shuffle reuse 50 of bet n's 51 floats.
+    const ss = generateServerSeed();
+    const cs = generateClientSeed();
+    const draws = (nonce: number) => new Set(Array.from({ length: 51 }, (_, c) => generateOutcome(ss, cs, nonce, c)));
+    const a = draws(10);
+    const b = draws(11);
+    expect([...a].filter((x) => b.has(x))).toEqual([]);
+  });
+
+  test("multi-draw engines draw every float from one nonce's cursors", () => {
+    const ss = generateServerSeed();
+    const cs = generateClientSeed();
+    // Recompute the Mines Fisher-Yates by hand from cursors 0..23 of nonce 3.
+    const positions = Array.from({ length: 25 }, (_, i) => i);
+    for (let i = 24; i > 0; i--) {
+      const j = Math.floor(generateOutcome(ss, cs, 3, 24 - i) * (i + 1));
+      [positions[i], positions[j]] = [positions[j], positions[i]];
+    }
+    expect(generateMinePositions(ss, cs, 3, 5)).toEqual(positions.slice(0, 5));
+  });
+
+  test("stateful engines resolve deterministically from injected seeds", () => {
+    const seeds = freshSeeds();
+    const a = blackjackStart(10000, seeds);
+    const b = blackjackStart(10000, seeds);
+    expect(a.playerCards).toEqual(b.playerCards);
+    expect(a.dealerUpCard).toEqual(b.dealerUpCard);
+    expect(a.serverSeedHash).toBe(hashServerSeed(seeds.serverSeed));
+    const c = blackjackStart(10000, { ...seeds, nonce: 1 });
+    expect([...c.playerCards, c.dealerUpCard]).not.toEqual([...a.playerCards, a.dealerUpCard]);
   });
 });

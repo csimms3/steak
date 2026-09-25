@@ -1,5 +1,5 @@
 import { generateOutcome } from "./rng";
-import { hashServerSeed, generateServerSeed, generateClientSeed } from "./rng";
+import { hashServerSeed, freshSeeds, type SeedInput } from "./rng";
 
 /**
  * Dragon Tower — climb a 9-row grid. Each row has `cols` tiles; `dragons` of them
@@ -13,7 +13,7 @@ import { hashServerSeed, generateServerSeed, generateClientSeed } from "./rng";
  *   expert: 3 cols, 2 dragons → P(safe) = 1/3, step ≈ 2.97×
  *
  * Dragon positions per row are placed via partial Fisher-Yates shuffle.
- * nonce = baseNonce + row * MAX_COLS + i for the i-th dragon in that row.
+ * cursor = row * MAX_COLS + i for the i-th dragon in that row.
  */
 
 export type DragonTowerDifficulty = "easy" | "medium" | "hard" | "expert";
@@ -57,7 +57,7 @@ function computeDragonPositions(
     const pool = Array.from({ length: cols }, (_, i) => i);
     const dragonCols: number[] = [];
     for (let d = 0; d < dragons; d++) {
-      const r = generateOutcome(serverSeed, clientSeed, nonce + row * MAX_COLS + d);
+      const r = generateOutcome(serverSeed, clientSeed, nonce, row * MAX_COLS + d);
       const j = Math.floor(r * (cols - d));
       dragonCols.push(pool[j]);
       pool[j] = pool[cols - 1 - d];
@@ -94,11 +94,9 @@ export interface DragonTowerStartResult {
 export function dragonTowerStart(
   betAmount: number,
   difficulty: DragonTowerDifficulty,
-  suppliedClientSeed?: string,
+  seeds: SeedInput = freshSeeds(),
 ): DragonTowerStartResult {
-  const serverSeed = generateServerSeed();
-  const clientSeed = suppliedClientSeed ?? generateClientSeed();
-  const nonce = 0;
+  const { serverSeed, clientSeed, nonce } = seeds;
 
   const dragonPositions = computeDragonPositions(serverSeed, clientSeed, nonce, difficulty);
   const { cols } = DIFFICULTY_CONFIG[difficulty];

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { blackjackStart, type BlackjackState } from "@/lib/game-engine";
+import { blackjackStart, freshSeeds, type BlackjackState } from "@/lib/game-engine";
 import { auth } from "@/auth";
 import { reserveBet, settleBet, InsufficientBalanceError } from "@/lib/game-balance";
 import { createRound, toJsonValue } from "@/lib/game-engine/round-store";
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { betAmount, clientSeed } = parsed.data;
-  const result = blackjackStart(betAmount, clientSeed);
+  const result = blackjackStart(betAmount, freshSeeds(clientSeed));
 
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json(result);

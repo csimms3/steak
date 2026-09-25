@@ -1,5 +1,5 @@
 import { shuffleDeck, handValue, type Card } from "./cards";
-import { hashServerSeed, generateServerSeed, generateClientSeed } from "./rng";
+import { hashServerSeed, freshSeeds, type SeedInput } from "./rng";
 
 /**
  * Blackjack — standard rules, dealer stands on soft 17, one split allowed (no resplit),
@@ -85,10 +85,8 @@ export interface BlackjackStartResult {
   serverSeed?: string;
 }
 
-export function blackjackStart(betAmount: number, suppliedClientSeed?: string): BlackjackStartResult {
-  const serverSeed = generateServerSeed();
-  const clientSeed = suppliedClientSeed ?? generateClientSeed();
-  const nonce = 0;
+export function blackjackStart(betAmount: number, seeds: SeedInput = freshSeeds()): BlackjackStartResult {
+  const { serverSeed, clientSeed, nonce } = seeds;
   const deck = shuffleDeck(serverSeed, clientSeed, nonce);
 
   const playerCards = [deck[0], deck[2]];

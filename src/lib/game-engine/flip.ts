@@ -6,7 +6,7 @@ import { generateOutcome } from "./rng";
  * 1.98× per flip (1% edge per flip), so:
  *   P(win) = 0.5^N,  payout = 1.98^N,  house edge = 1 − 0.99^N.
  *
- * Each flip consumes a fresh provably-fair outcome at nonce + offset.
+ * Each flip consumes a fresh outcome at cursor = flip index.
  */
 
 export type Side = "heads" | "tails";
@@ -39,7 +39,7 @@ export function resolveFlip(
   let broken = false;
 
   for (let i = 0; i < targetStreak; i++) {
-    const r = generateOutcome(serverSeed, clientSeed, nonce + i);
+    const r = generateOutcome(serverSeed, clientSeed, nonce, i);
     const flip: Side = r < 0.5 ? "heads" : "tails";
     flips.push(flip);
     if (!broken && flip === side) streak++;

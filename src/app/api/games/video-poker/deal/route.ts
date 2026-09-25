@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { videoPokerDeal, type VideoPokerState } from "@/lib/game-engine";
+import { videoPokerDeal, freshSeeds, type VideoPokerState } from "@/lib/game-engine";
 import { auth } from "@/auth";
 import { reserveBet, InsufficientBalanceError } from "@/lib/game-balance";
 import { createRound } from "@/lib/game-engine/round-store";
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { betAmount, clientSeed } = parsed.data;
-  const result = videoPokerDeal(betAmount, clientSeed);
+  const result = videoPokerDeal(betAmount, freshSeeds(clientSeed));
 
   const session = await auth();
   if (session?.user?.id) {

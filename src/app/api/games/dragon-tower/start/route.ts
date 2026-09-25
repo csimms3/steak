@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { dragonTowerStart, type DragonTowerState } from "@/lib/game-engine";
+import { dragonTowerStart, freshSeeds, type DragonTowerState } from "@/lib/game-engine";
 import { auth } from "@/auth";
 import { reserveBet, InsufficientBalanceError } from "@/lib/game-balance";
 import { createRound } from "@/lib/game-engine/round-store";
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { betAmount, difficulty, clientSeed } = parsed.data;
-  const result = dragonTowerStart(betAmount, difficulty, clientSeed);
+  const result = dragonTowerStart(betAmount, difficulty, freshSeeds(clientSeed));
 
   const session = await auth();
   if (session?.user?.id) {

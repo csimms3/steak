@@ -7,7 +7,7 @@ import { generateOutcome } from "./rng";
  * 4 tiles before the round; payout is by how many of their picks contain a
  * diamond. The remaining 9 tiles are filled with decorative gems for the reveal.
  *
- * Provably fair: a Fisher-Yates shuffle of positions 0–11 using nonce-increment
+ * A Fisher-Yates shuffle of positions 0–11 (one HMAC outcome per cursor)
  * places the 3 diamonds at the first 3 shuffled positions.
  *
  * Payout table (targets ~96.5% RTP):
@@ -53,7 +53,7 @@ export function resolveDiamonds(
   const positions = Array.from({ length: 12 }, (_, i) => i);
   const diamondPositions: number[] = [];
   for (let i = 0; i < 3; i++) {
-    const r = generateOutcome(serverSeed, clientSeed, nonce + i);
+    const r = generateOutcome(serverSeed, clientSeed, nonce, i);
     const j = Math.floor(r * (12 - i));
     diamondPositions.push(positions[j]);
     positions[j] = positions[11 - i];

@@ -3,9 +3,10 @@ import { generateOutcome } from "./rng";
 /**
  * Shared 52-card primitives for card games (Hilo, Blackjack, Video Poker, Baccarat).
  *
- * Cards are shuffled provably-fairly using the same nonce-increment Fisher-Yates
- * technique as `generateMinePositions` in mines.ts: each swap consumes one fresh
- * HMAC outcome at `nonce + offset`, so the whole deck is reproducible from the seeds.
+ * Cards are shuffled with the same Fisher-Yates technique as
+ * `generateMinePositions` in mines.ts: each swap consumes one fresh HMAC outcome
+ * at the next cursor under a single nonce, so the whole deck is reproducible
+ * from the seeds.
  */
 
 export type Suit = "hearts" | "diamonds" | "clubs" | "spades";
@@ -51,7 +52,7 @@ export function shuffleDeck(
 ): Card[] {
   const ids = Array.from({ length: DECK_SIZE }, (_, i) => i);
   for (let i = DECK_SIZE - 1; i > 0; i--) {
-    const outcome = generateOutcome(serverSeed, clientSeed, nonce + (DECK_SIZE - 1 - i));
+    const outcome = generateOutcome(serverSeed, clientSeed, nonce, DECK_SIZE - 1 - i);
     const j = Math.floor(outcome * (i + 1));
     [ids[i], ids[j]] = [ids[j], ids[i]];
   }

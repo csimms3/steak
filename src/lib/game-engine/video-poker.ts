@@ -1,5 +1,5 @@
 import { shuffleDeck, rankPokerHand, type Card, type PokerCategory } from "./cards";
-import { hashServerSeed, generateServerSeed, generateClientSeed } from "./rng";
+import { hashServerSeed, freshSeeds, type SeedInput } from "./rng";
 
 /**
  * Video Poker — Jacks or Better, standard 9/6 paytable (per 1 unit bet).
@@ -40,10 +40,8 @@ export interface VideoPokerDealResult {
   clientSeed: string;
 }
 
-export function videoPokerDeal(betAmount: number, suppliedClientSeed?: string): VideoPokerDealResult {
-  const serverSeed = generateServerSeed();
-  const clientSeed = suppliedClientSeed ?? generateClientSeed();
-  const nonce = 0;
+export function videoPokerDeal(betAmount: number, seeds: SeedInput = freshSeeds()): VideoPokerDealResult {
+  const { serverSeed, clientSeed, nonce } = seeds;
   const deck = shuffleDeck(serverSeed, clientSeed, nonce);
   const hand = deck.slice(0, 5);
 

@@ -8,14 +8,21 @@ export class InsufficientBalanceError extends Error {
   }
 }
 
+export type Tx = Prisma.TransactionClient;
+
+/** Runs `fn` inside the caller's transaction if given, otherwise in a new one. */
+function inTx<T>(tx: Tx | undefined, fn: (tx: Tx) => Promise<T>): Promise<T> {
+  return tx ? fn(tx) : prisma.$transaction(fn);
+}
+
 /**
  * Reserves a bet for a stateful game's `start` step: atomically checks and
  * decrements balance in one guarded UPDATE (no read-then-write race window —
  * safe under concurrent requests from the same user). No GameSession is
  * written here since the game hasn't resolved yet.
  */
-export async function reserveBet(userId: string, betAmount: bigint): Promise<bigint> {
-  return prisma.$transaction(async (tx) => {
+export async function reserveBet(userId: string, betAmount: bigint, tx?: Tx): Promise<bigint> {
+  return inTx(tx, async (tx) => {
     const result = await tx.user.updateMany({
       where: { id: userId, balance: { gte: betAmount } },
       data: { balance: { decrement: betAmount } },
@@ -41,6 +48,8 @@ export interface SettleParams {
   /** true when reserveBet() already debited this wager at `start` — the credit
    *  here is the payout only (betAmount + profit), not the full profit delta. */
   reserved: boolean;
+  /** The seed pair this bet resolved against; omitted for guest-style throwaway seeds. */
+  seedPairId?: string;
 }
 
 /**
@@ -48,10 +57,10 @@ export interface SettleParams {
  * atomically. For unreserved (stateless) bets, also guards against
  * insufficient balance in the same atomic UPDATE as the debit+credit.
  */
-export async function settleBet(params: SettleParams): Promise<bigint> {
+export async function settleBet(params: SettleParams, tx?: Tx): Promise<bigint> {
   const { userId, betAmount, profit, reserved } = params;
 
-  return prisma.$transaction(async (tx) => {
+  return inTx(tx, async (tx) => {
     let balance: bigint;
 
     if (reserved) {
@@ -85,6 +94,7 @@ export async function settleBet(params: SettleParams): Promise<bigint> {
         clientSeed: params.clientSeed,
         nonce: params.nonce,
         outcome: params.outcome,
+        seedPairId: params.seedPairId,
       },
     });
 

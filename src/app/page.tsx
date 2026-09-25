@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import {
   Flame, Dice5, Grid2x2, CircleDot, Rocket, Disc3, CircleDollarSign,
-  Grid3X3, Gem, TrendingUp, Castle, Spade, LayoutGrid, Search, Zap, Club,
+  Grid3X3, Gem, TrendingUp, Castle, Spade, LayoutGrid, Search, Zap, Club, Star,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -18,25 +18,25 @@ interface Game {
   poster: string; // gradient classes for the poster card
   badge: string;
   group: Group;
-  trend?: number; // rank in the trending row
+  featured?: number; // position in the curated Featured row (editorial, not a popularity rank)
 }
 
 const GAMES: Game[] = [
-  { href: "/games/crash", label: "Crash", icon: Flame, badge: "Classic", group: "originals", trend: 1,
+  { href: "/games/crash", label: "Crash", icon: Flame, badge: "Classic", group: "originals", featured: 1,
     description: "Watch the multiplier climb. Cash out before it crashes.", poster: "from-orange-500 to-rose-700" },
-  { href: "/games/mines", label: "Mines", icon: Grid2x2, badge: "Strategy", group: "originals", trend: 2,
+  { href: "/games/mines", label: "Mines", icon: Grid2x2, badge: "Strategy", group: "originals", featured: 2,
     description: "Reveal tiles on a 5×5 grid. Avoid the mines. Cash out any time.", poster: "from-emerald-500 to-teal-800" },
-  { href: "/games/plinko", label: "Plinko", icon: CircleDot, badge: "Luck", group: "originals", trend: 3,
+  { href: "/games/plinko", label: "Plinko", icon: CircleDot, badge: "Luck", group: "originals", featured: 3,
     description: "Drop a ball through a pegged board and hit the multiplier buckets.", poster: "from-fuchsia-500 to-purple-800" },
-  { href: "/games/dice", label: "Dice", icon: Dice5, badge: "Classic", group: "originals", trend: 4,
+  { href: "/games/dice", label: "Dice", icon: Dice5, badge: "Classic", group: "originals", featured: 4,
     description: "Predict whether the roll lands over or under your target.", poster: "from-blue-500 to-indigo-800" },
-  { href: "/games/blackjack", label: "Blackjack", icon: Spade, badge: "Classic", group: "tables", trend: 5,
+  { href: "/games/blackjack", label: "Blackjack", icon: Spade, badge: "Classic", group: "tables", featured: 5,
     description: "Hit, stand, double, or split. Beat the dealer to 21 for a 3:2 payout.", poster: "from-slate-600 to-slate-900" },
-  { href: "/games/limbo", label: "Limbo", icon: Rocket, badge: "Instant", group: "originals", trend: 6,
+  { href: "/games/limbo", label: "Limbo", icon: Rocket, badge: "Instant", group: "originals", featured: 6,
     description: "Set a target multiplier and beat it. How high can you go?", poster: "from-sky-400 to-blue-700" },
-  { href: "/games/dragon-tower", label: "Dragon Tower", icon: Castle, badge: "Strategy", group: "originals", trend: 7,
+  { href: "/games/dragon-tower", label: "Dragon Tower", icon: Castle, badge: "Strategy", group: "originals", featured: 7,
     description: "Climb 9 rows, avoid the dragons, and cash out before you get burned.", poster: "from-red-500 to-orange-900" },
-  { href: "/games/keno", label: "Keno", icon: Grid3X3, badge: "Multi-draw", group: "originals", trend: 8,
+  { href: "/games/keno", label: "Keno", icon: Grid3X3, badge: "Multi-draw", group: "originals", featured: 8,
     description: "Pick 1–10 tiles from a 40-number grid. Match the draw for big multipliers.", poster: "from-teal-400 to-cyan-800" },
   { href: "/games/wheel", label: "Wheel", icon: Disc3, badge: "Luck", group: "originals",
     description: "Spin the wheel, pick your risk, and land on a multiplier.", poster: "from-rose-500 to-pink-800" },
@@ -50,35 +50,11 @@ const GAMES: Game[] = [
     description: "Jacks or Better — hold your best cards and draw for the payout.", poster: "from-indigo-500 to-blue-900" },
 ];
 
-// ─── Fake live-play counts ─────────────────────────────────────────────────────
-// Deterministic base (SSR-safe), gentle wobble after mount so the lobby feels alive.
-
-function hashLabel(label: string): number {
-  let h = 0;
-  for (let i = 0; i < label.length; i++) h = (h * 31 + label.charCodeAt(i)) | 0;
-  return Math.abs(h);
-}
-
-function liveCount(label: string, tick: number): number {
-  const h = hashLabel(label);
-  const base = 140 + (h % 820);
-  if (tick === 0) return base;
-  return Math.max(8, Math.round(base + Math.sin((h % 97) + tick * 1.7) * 17));
-}
-
-function PlayingCount({ label, tick }: { label: string; tick: number }) {
-  return (
-    <span className="flex items-center gap-1.5 text-[11px] text-[var(--muted)] tabular-nums">
-      <span className="w-1.5 h-1.5 rounded-full bg-[var(--live)] animate-pulse" />
-      <span className="text-[var(--text)] font-semibold">{liveCount(label, tick).toLocaleString()}</span>
-      playing
-    </span>
-  );
-}
+const FEATURED = GAMES.filter((g) => g.featured !== undefined).sort((a, b) => a.featured! - b.featured!);
 
 // ─── Poster card ───────────────────────────────────────────────────────────────
 
-function PosterCard({ game, tick, rank, className }: { game: Game; tick: number; rank?: number; className?: string }) {
+function PosterCard({ game, className }: { game: Game; className?: string }) {
   const Icon = game.icon;
   return (
     <Link href={game.href} title={game.description} className={cn("group block", className)}>
@@ -93,11 +69,6 @@ function PosterCard({ game, tick, rank, className }: { game: Game; tick: number;
         <span className="absolute top-2 left-1/2 -translate-x-1/2 font-display text-[9px] font-bold tracking-[0.25em] text-white/60 uppercase">
           Steak
         </span>
-        {rank !== undefined && (
-          <span className="absolute top-1.5 left-1.5 w-5 h-5 rounded-md bg-black/40 backdrop-blur-sm flex items-center justify-center text-[10px] font-bold text-white">
-            {rank}
-          </span>
-        )}
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-3">
           <Icon size={42} className="text-white drop-shadow-[0_4px_12px_rgba(0,0,0,0.45)]" strokeWidth={1.75} />
           <span className="font-display text-white text-sm md:text-[15px] font-extrabold uppercase tracking-wider text-center leading-tight drop-shadow">
@@ -107,9 +78,6 @@ function PosterCard({ game, tick, rank, className }: { game: Game; tick: number;
         <span className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[8px] font-semibold uppercase tracking-widest text-white/55">
           {game.badge}
         </span>
-      </div>
-      <div className="flex justify-center mt-2">
-        <PlayingCount label={game.label} tick={tick} />
       </div>
     </Link>
   );
@@ -128,26 +96,12 @@ function SectionHeader({ icon: Icon, title }: { icon: typeof Flame; title: strin
 
 export default function LobbyPage() {
   const [query, setQuery] = useState("");
-  const [tick, setTick] = useState(0);
-
-  useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 4000);
-    return () => clearInterval(id);
-  }, []);
-
-  const trending = useMemo(
-    () => GAMES.filter((g) => g.trend !== undefined).sort((a, b) => a.trend! - b.trend!),
-    []
-  );
   const originals = GAMES.filter((g) => g.group === "originals");
   const tables = GAMES.filter((g) => g.group === "tables");
-  const results = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return null;
-    return GAMES.filter((g) => g.label.toLowerCase().includes(q) || g.badge.toLowerCase().includes(q));
-  }, [query]);
-
-  const totalPlaying = GAMES.reduce((sum, g) => sum + liveCount(g.label, tick), 0);
+  const q = query.trim().toLowerCase();
+  const results = q
+    ? GAMES.filter((g) => g.label.toLowerCase().includes(q) || g.badge.toLowerCase().includes(q))
+    : null;
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
@@ -170,11 +124,6 @@ export default function LobbyPage() {
               >
                 Play now
               </Link>
-              <span className="flex items-center gap-1.5 text-xs text-[var(--muted)] tabular-nums">
-                <span className="w-1.5 h-1.5 rounded-full bg-[var(--live)] animate-pulse" />
-                <span className="text-[var(--text)] font-semibold">{totalPlaying.toLocaleString()}</span>
-                playing now
-              </span>
             </div>
           </div>
           {/* Promo tiles */}
@@ -209,17 +158,17 @@ export default function LobbyPage() {
         <section className="space-y-4">
           <SectionHeader icon={Search} title={results.length ? `Results (${results.length})` : "No games found"} />
           <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-4">
-            {results.map((g) => <PosterCard key={g.href} game={g} tick={tick} />)}
+            {results.map((g) => <PosterCard key={g.href} game={g} />)}
           </div>
         </section>
       ) : (
         <>
-          {/* Trending */}
+          {/* Featured: a curated pick, not a popularity ranking */}
           <section className="space-y-4">
-            <SectionHeader icon={TrendingUp} title="Trending" />
+            <SectionHeader icon={Star} title="Featured" />
             <div className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1 snap-x">
-              {trending.map((g, i) => (
-                <PosterCard key={g.href} game={g} tick={tick} rank={i + 1} className="shrink-0 w-32 md:w-36 snap-start" />
+              {FEATURED.map((g) => (
+                <PosterCard key={g.href} game={g} className="shrink-0 w-32 md:w-36 snap-start" />
               ))}
             </div>
           </section>
@@ -228,7 +177,7 @@ export default function LobbyPage() {
           <section id="originals" className="space-y-4 scroll-mt-20">
             <SectionHeader icon={Zap} title="Steak Originals" />
             <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-4">
-              {originals.map((g) => <PosterCard key={g.href} game={g} tick={tick} />)}
+              {originals.map((g) => <PosterCard key={g.href} game={g} />)}
             </div>
           </section>
 
@@ -236,7 +185,7 @@ export default function LobbyPage() {
           <section id="tables" className="space-y-4 scroll-mt-20">
             <SectionHeader icon={Club} title="Cards & Tables" />
             <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-4">
-              {tables.map((g) => <PosterCard key={g.href} game={g} tick={tick} />)}
+              {tables.map((g) => <PosterCard key={g.href} game={g} />)}
             </div>
           </section>
         </>

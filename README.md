@@ -4,10 +4,6 @@
 
 A play-money online game platform: 13 games, provably fair for account holders through a committed per-player seed pair, a custom HMAC-SHA256 RNG engine, and optional accounts with server-persisted balances, built on Next.js and Postgres.
 
-**[Live demo](TODO: add after deploy)** · Register an account or just play as a guest — both work, see [How balance works](#how-balance-works) below.
-
-<!-- TODO: 2-4 screenshots here once deployed — lobby, a game in progress, bet history -->
-
 ## What's here
 
 - **13 games**: Dice, Limbo, Wheel, Flip, Keno, Diamonds, Plinko, Mines, Hilo, Dragon Tower, Blackjack, Video Poker, Crash — each with its own HMAC-SHA256 outcome engine and unit-tested payout math.
